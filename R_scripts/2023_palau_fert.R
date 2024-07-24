@@ -114,3 +114,4 @@ p0 <- ggplot(new_data, aes(x = dist, y = deg)) +
 deg_from_s5
 p0 <- p0 + geom_hline(yintercept = c(-78, -52, -26, 0, 26, 52), color = "#E1AF00", lty = 2)
 p0
+#ggsave(p0, filename = '2023palau_fert.tiff',  path = "./plots", device = "tiff",  width = 8, height = 5)  #this often works better than pdf
