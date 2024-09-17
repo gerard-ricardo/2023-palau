@@ -29,28 +29,38 @@ data1$time <- sprintf("%s PM", data1$time)  # Append PM to each time string
 data1$time <- as.POSIXct(paste("2000-01-01", data1$time), format="%Y-%m-%d %I:%M %p", tz="UTC")
 base_time <- min(data1$time, na.rm = T)
 data1$time_from_base <- as.numeric(difftime(data1$time, base_time, units = "secs"))
+data1$quality_score = 1
+# adjust the quality_score based on specific conditions in the dataframe
+data1$quality_score[data1$id == "5_05" & data1$spoke == 5] <- 0.5  # Set quality_score to 50 for id 5_05 and spoke 5
+data1$quality_score[data1$id == "7_05" & data1$spoke == 7] <- 0.5  # Set quality_score to 50 for id 7_05 and spoke 7
+
 
 
 # 3. Data Exploration ----------------------------------------------------
-#
 
 
-
-
-
-# sum of all embryos
-(with(data1, sum(suc, na.rm = T) / sum(tot, na.rm = T)))  #22.4%
-#mean of all samples
-with(data1, mean(prop, na.rm = T))  #unweighted
 
 # Wrangling
 data2 <- data1[25:28, ] # only centre
-data1 <- data1[1:24, ] # only radial lines
+data3 <- data1[1:24, ] # only radial lines
 
 # Calculate degrees from a baseline (s1) and adjust by subtracting an offset (s5)
 deg_from_s1 <- c(26, 52, 78, 104, 130, 156)
 (deg_from_s5 <- deg_from_s1 - 104)
-data1$deg <- sort(rep(deg_from_s5, 4))
+data3$deg <- sort(rep(deg_from_s5, 4))
+
+
+##overall mean
+# sum of all embryos
+(with(data1, sum(suc, na.rm = T) / sum(tot, na.rm = T)))  #22.4%
+#mean of all samples
+with(data1, mean(prop, na.rm = T))  #unweighted
+#weighted mean
+(wei_mean_prop_cent <- sum(data1$prop * data1$tot, na.rm = TRUE) / sum(data1$tot, na.rm = TRUE))
+(wei_mean_prop_cent <- sum(data2$prop * data2$tot, na.rm = TRUE) / sum(data2$tot, na.rm = TRUE))
+(wei_mean_prop_rad <- sum(data3$prop * data3$tot, na.rm = TRUE) / sum(data3$tot, na.rm = TRUE))
+
+
 
 # #quick data input (need to check)
 # x  = c(0.7, 3, 10, 30)
@@ -81,7 +91,7 @@ data1$deg <- sort(rep(deg_from_s5, 4))
 # abline(h = 0)
 
 library(glmmTMB)
-md1 <- glmmTMB(cbind(suc, (tot - suc)) ~ (dist) + poly(deg, 2) + (1 | obs), family = "betabinomial", data = data1)
+md1 <- glmmTMB(cbind(suc, (tot - suc)) ~ (dist) + poly(deg, 2) + (1 | obs), family = "betabinomial", weights = quality_score, data = data3)
 summary(md1)
 AIC(md1)
 plot(fitted(md1), resid(md1)) # fitted vs residuals
@@ -92,8 +102,9 @@ abline(h = 0)
 
 # 1. Generate a new data frame for predictions
 new_data <- expand.grid(
-  dist = seq(min(data1$dist), max(data1$dist), length.out = 100),
-  deg = seq(min(data1$deg), max(data1$deg), length.out = 100)
+  dist = seq(min(data3$dist), max(data3$dist), length.out = 100),
+  deg = seq(min(data3$deg), max(data3$deg), length.out = 100),
+  quality_score = 1
 )
 new_data$spoke <- factor("s5") # Example, choose appropriately based on your model structure
 new_data$obs <- factor("001") # Assuming a single observation for prediction purposes
