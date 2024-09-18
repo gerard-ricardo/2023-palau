@@ -10,6 +10,8 @@ library(units)
 library(sf)
 library(ggmap)
 library(Hmisc)
+library(purrr)
+library(gridExtra)
 source("https://raw.githubusercontent.com/gerard-ricardo/data/master/theme_sleek2") # set theme in code
 source("https://raw.githubusercontent.com/gerard-ricardo/data/master/theme_sleek1") # set theme in code
 
@@ -40,7 +42,7 @@ join_df1 <- left_join(data2, meta2, by = 'id')  #add mother lat lon
 join_df1 <- join_df1 %>% select(-id) %>% mutate(id = fath_id)  #reset id to fathers
 join_df2 <- left_join(join_df1, meta2, by = 'id')  #add father lat lon
 
-#try normalising to weight larvae
+#try normalizing to weight larvae
 larvae_count <- table(join_df2$moth_id)
 join_df2$normalised_weight <- 1 / larvae_count[join_df2$moth_id]
 
@@ -76,8 +78,12 @@ lower_95 <- unname(quan_95[1])
 upper_95 <- unname(quan_95[2])
 
 #selfing
-selfing_no = length(which(join_df2$dist_m == 0))  #self fertilisation
-(selfing_prop = selfing_no / nrow(join_df2))
+selfing_id = join_df2[which(join_df2$dist_m == 0),]  #self fertilisation
+selfing_no = nrow(selfing_id)
+(selfing_prop = sum(selfing_id$normalised_weight) / sum(join_df2$normalised_weight))  #normalised selfing
+#most of these from individual (5/7) from 7_10. Interesting other fragments didnt have this though. 
+
+
 
 #non particpants
 meta3 <- meta2[complete.cases(meta2), ] # make sure import matches NA type
@@ -127,27 +133,132 @@ ggmap(map) +
 
 #zoomed out
 map <- get_googlemap(center = c(lon = join_df2$lon.x[8], lat = join_df2$lat.x[8]), zoom = 20, color = "bw", maptype = "satellite")
+
 p2 = ggmap(map) +
-  geom_segment(join_df2, mapping = aes(x = lon.x, y = lat.x, xend = lon.y, yend = lat.y), color = "red", size = 1) +
-  geom_point(data = meta2, aes(x = lon, y = lat), color = "white", size = 3) +
-geom_point(data = join_df2, aes(x = lon.x, y = lat.x), color = "blue", size = 3)+
-geom_point(data = join_df2, aes(x = lon.y, y = lat.y), color = "blue", size = 3) +
+  geom_segment(data = join_df2, aes(x = lon.x, y = lat.x, xend = lon.y, yend = lat.y), color = "red", size = 1) +  # pairwise parental cross
+  geom_point(data = meta2, aes(x = lon, y = lat), color = "white", size = 3) +  # all colony positions
+  geom_point(data = join_df2, aes(x = lon.x, y = lat.x, color = "Mother"), size = 3) +  # mother, mapped to "Mother"
+  geom_point(data = join_df2, aes(x = lon.y, y = lat.y, color = "Father"), size = 3) +  # father, mapped to "Father"
+  scale_color_manual(name = "Parent", values = c("Mother" = "blue", "Father" = "green")) +  # manual colour scale for the legend
+  labs(x = "Longitude", y = "Latitude") +
+  theme_minimal()
+#ggsave(filename = '2023palau_gen_zoomout.tiff',  path = "./plots", device = "tiff",  width = 5, height = 5)  #this often works better than pdf
+
+#zoomed out jitter attempt (not sure if better)
+map <- get_googlemap(center = c(lon = join_df2$lon.x[8], lat = join_df2$lat.x[8]), zoom = 20, color = "bw", maptype = "satellite")
+p2 = ggmap(map) +
+  geom_point(data = meta2, aes(x = lon, y = lat), color = "white", size = 3) +  # all colony positions
+  geom_segment(data = join_df2, mapping = aes(x = lon.x, y = lat.x, xend = lon.y, yend = lat.y), color = "red", size = 1) +  # pairwise parental cross
+  geom_jitter(data = join_df2, aes(x = lon.x, y = lat.x), color = "blue", size = 3, shape = 16, width = 0.000005, height = 0.000005) +  # mother, jittered slightly
+  geom_jitter(data = join_df2, aes(x = lon.y, y = lat.y), alpha = 0.5, color = "green", size = 3, shape = 17, width = 0.000005, height = 0.000005) +  # father, different shape, jittered slightly
   labs(x = "Longitude", y = "Latitude") +
   theme_sleek1()
-#ggsave(filename = '2023palau_gen_zoomout.tiff',  path = "./plots", device = "tiff",  width = 5, height = 5)  #this often works better than pdf
 
 
 #zoomed in
 map <- get_googlemap(center = c(lon = join_df2$lon.x[4], lat = join_df2$lat.x[4]), zoom = 22, color = "bw", maptype = "satellite")
 p3 = ggmap(map) +
-  geom_segment(join_df2, mapping = aes(x = lon.x, y = lat.x, xend = lon.y, yend = lat.y), color = "red", size = 1) +
-  geom_point(data = meta2, aes(x = lon, y = lat), color = "white", size = 3)+
-  geom_point(data = join_df2, aes(x = lon.x, y = lat.x), color = "blue", size = 3)+
-  geom_point(data = join_df2, aes(x = lon.y, y = lat.y), color = "blue", size = 3) +
+  geom_segment(join_df2, mapping = aes(x = lon.x, y = lat.x, xend = lon.y, yend = lat.y), color = "red", size = 1) +  #pairwise parental cross
+  geom_point(data = meta2, aes(x = lon, y = lat), color = "white", size = 3)+   # all colony positions
+  geom_point(data = join_df2, aes(x = lon.x, y = lat.x), color = "blue", size = 3)+  #mother
+  geom_point(data = join_df2, aes(x = lon.y, y = lat.y), color = "blue", size = 3) +  #father
   labs(x = "Longitude", y = "Latitude") +
   theme_sleek1()
 #ggsave(filename = '2023palau_gen_zoomin.tiff',  path = "./plots", device = "tiff",  width = 5, height = 5)  #this often works better than pdf
 
-  
-library(gridExtra)
-grid.arrange(arrangeGrob(p2, p3, ncol = 1))
+#colony positions
+map <- get_googlemap(center = c(lon = join_df2$lon.x[8], lat = join_df2$lat.x[8]), zoom = 20, color = "bw", maptype = "satellite")
+(p4_1 = ggmap(map) +
+  geom_point(data = meta2, aes(x = lon, y = lat), color = "white", size = 3) +
+  labs(x = "Longitude", y = "Latitude") +
+  theme_sleek1())
+
+#monitoring positions
+# map <- get_googlemap(center = c(lon = join_df2$lon.x[8], lat = join_df2$lat.x[8]), zoom = 20, color = "bw", maptype = "satellite")
+# (p4_2 = ggmap(map) +
+#     geom_point(data = meta2, aes(x = lon, y = lat), color = "white", size = 3) +
+#     geom_point(data = join_df2, aes(x = lon.x, y = lat.x), color = "blue", size = 3)+
+#     labs(x = "Longitude", y = "Latitude") +
+#     theme_sleek1())
+
+#mother positions
+map <- get_googlemap(center = c(lon = join_df2$lon.x[8], lat = join_df2$lat.x[8]), zoom = 20, color = "bw", maptype = "satellite")
+(p4_2 = ggmap(map) +
+    geom_point(data = meta2, aes(x = lon, y = lat), color = "white", size = 3) +
+    geom_point(data = join_df2, aes(x = lon.x, y = lat.x), color = "blue", size = 3)+
+    labs(x = "Longitude", y = "Latitude") +
+    theme_sleek1())
+
+#father positions
+map <- get_googlemap(center = c(lon = join_df2$lon.x[8], lat = join_df2$lat.x[8]), zoom = 20, color = "bw", maptype = "satellite")
+(p4_3 = ggmap(map) +
+    geom_point(data = meta2, aes(x = lon, y = lat), color = "white", size = 3) +
+    geom_point(data = join_df2, aes(x = lon.y, y = lat.y), color = "red", size = 3)+
+    labs(x = "Longitude", y = "Latitude") +
+    theme_sleek1())
+
+#selfing positions
+map <- get_googlemap(center = c(lon = join_df2$lon.x[8], lat = join_df2$lat.x[8]), zoom = 20, color = "bw", maptype = "satellite")
+(p4_4 = ggmap(map) +
+    geom_point(data = meta2, aes(x = lon, y = lat), color = "white", size = 3) +
+    geom_point(data = join_df2[which(join_df2$dist_m == 0),], aes(x = lon.y, y = lat.y), color = "green", size = 3)+
+    labs(x = "Longitude", y = "Latitude") +
+    theme_sleek1())
+
+
+
+#grid.arrange(arrangeGrob(p2, p3, ncol = 1))
+grid.arrange(arrangeGrob(p4_1, p4_2, ncol = 2), arrangeGrob(p4_3, p4_4, ncol = 2))
+
+
+
+# parental pairwise crosses (based on mother genotypes) -------------------------------------------------------
+
+
+# Define a function that creates a plot for a given genotype
+plot_genotype <- function(genotype) {
+  # Subset the data for the current genotype
+  subset_df <- join_df2[join_df2$genotype.x == genotype, ]
+  # Fetch the map based on the subset data (mother location)
+  map <- get_googlemap(center = c(lon = join_df2$lon.x[8], lat = join_df2$lat.x[8]), zoom = 20, color = "color", maptype = "satellite")
+  p = ggmap(map) +
+    geom_point(data = meta2, aes(x = lon, y = lat), color = "white", size = 3) +  # all colony positions
+    geom_segment(data = subset_df, aes(x = lon.x, y = lat.x, xend = lon.y, yend = lat.y), color = "red", size = 1) +  # pairwise parental cross
+    geom_point(data = subset_df, aes(x = lon.x, y = lat.x, color = "Mother"), size = 3) +  # mother, mapped to "Mother"
+    geom_point(data = subset_df, aes(x = lon.y, y = lat.y, color = "Father"), size = 3) +  # father, mapped to "Father"
+    scale_color_manual(name = "Parent", values = c("Mother" = "blue", "Father" = "green")) +  # manual colour scale for the legend
+    labs(x = "Longitude", y = "Latitude") +
+    theme_minimal()
+  return(p)
+}
+
+# Apply the function to each unique genotype using purrr::map
+plots <- map(unique(join_df2$genotype.x), plot_genotype)
+
+# Optionally, to print each plot:
+walk(plots, print)
+
+# You can also save the plots if needed, using ggsave
+walk2(plots, unique(join_df2$genotype.x), ~ggsave(path = "./plots/pairwise_crosses", filename = paste0("genotype_", .y, ".jpg"), plot = .x, width = 8, height = 6))
+
+## add to animation
+
+library(magick)
+# Specify the path where your images are stored
+img_dir <- "./plots/pairwise_crosses"  # Adjust this path
+# List all .jpg files in the directory
+image_files <- list.files(path = img_dir, pattern = "*.jpg", full.names = TRUE)
+
+# Read the images into a magick image object
+images <- image_read(image_files)
+
+# Animate the images to create a GIF, setting the delay to 1 frame per second (1 second per image)
+gif <- image_animate(images, fps = 0.5)  # 
+
+# Save the animated GIF
+image_write(gif, path = "./plots/compiled_maps.gif")
+
+
+install.packages("dartR")
+
+
