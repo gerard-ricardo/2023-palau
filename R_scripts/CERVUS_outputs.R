@@ -12,6 +12,9 @@ library(ggmap)
 library(Hmisc)
 library(purrr)
 library(gridExtra)
+library(magick)
+library(geosphere)
+library(plotrix)
 source("https://raw.githubusercontent.com/gerard-ricardo/data/master/theme_sleek2") # set theme in code
 source("https://raw.githubusercontent.com/gerard-ricardo/data/master/theme_sleek1") # set theme in code
 
@@ -31,13 +34,13 @@ data2 = data1 %>% select(., c(offsp_id, moth_id, fath_id))
 data2 = data2 %>% mutate(id = moth_id)  #mother
 
 
-# 1 Import cervus out data -----------------------------------------------------------
+# 1 Import CERVUS out data -----------------------------------------------------------
 load("./Rdata/data_gl_filtered.RData")  #data_gl_filtered.RData
 meta = data_gl_filtered@other$ind.metrics
 meta = meta  %>% rename(id2 = id) %>% mutate(id = paste0("X", id2)) 
 meta2 <- meta %>% select(c(id, lat, lon, genotype ))
 
-# join tables -------------------------------------------------------------
+# join tables 
 join_df1 <- left_join(data2, meta2, by = 'id')  #add mother lat lon
 join_df1 <- join_df1 %>% select(-id) %>% mutate(id = fath_id)  #reset id to fathers
 join_df2 <- left_join(join_df1, meta2, by = 'id')  #add father lat lon
@@ -46,20 +49,30 @@ join_df2 <- left_join(join_df1, meta2, by = 'id')  #add father lat lon
 larvae_count <- table(join_df2$moth_id)
 join_df2$normalised_weight <- 1 / larvae_count[join_df2$moth_id]
 
-
-
-# calculate distances -----------------------------------------------------
-
-# Convert the data frame to two separate sf objects with WGS 84 CRS
+# calculate metrics -----------------------------------------------------
+# Convert the data frame to two separate sf objects with WGS 84 CRS for  GPS systems
 points_x <- st_as_sf(join_df2, coords = c("lon.x", "lat.x"), crs = 4326)
 points_y <- st_as_sf(join_df2, coords = c("lon.y", "lat.y"), crs = 4326)
-
 # Using UTM zone 53N for Palau (EPSG: 32653)
 points_x_proj <- st_transform(points_x, crs = 32653)
 points_y_proj <- st_transform(points_y, crs = 32653)
-
+# calculate distances between parents
 join_df2$dist <- st_distance(points_x_proj, points_y_proj, by_element = TRUE)
 join_df2$dist_m = as.numeric(join_df2$dist )
+
+# calculate angle between mum and fathers (not weighted)
+bin_width <- 20 # Define the bin width (e.g., 20 degrees)
+join_df2 <- join_df2 %>% mutate(angle_binned = cut(angle, breaks = seq(0, 360, by = bin_width), include.lowest = TRUE, labels = seq(bin_width/2, 360 - bin_width/2, by = bin_width))) # Create a new column for the binned angles
+angle_counts_binned <- as.data.frame(table(join_df2$angle_binned)) # Create a table of binned angles and their counts
+colnames(angle_counts_binned) <- c("angle_binned", "count") # Rename columns for clarity
+angle_counts_binned$angle_binned <- as.numeric(as.character(angle_counts_binned$angle_binned)) # Convert the binned angles to numeric for plotting
+# to true north
+polar.plot(lengths = angle_counts_binned$count, polar.pos = angle_counts_binned$angle_binned, radial.lim = c(0, max(angle_counts_binned$count)), 
+           start = 90, lwd = 3, line.col = 4, clockwise = T) # Plot using polar coordinates with binned angles
+# to water flow (currently to radial line 5 )
+polar.plot(lengths = angle_counts_binned$count, polar.pos = angle_counts_binned$angle_binned, radial.lim = c(0, max(angle_counts_binned$count)), start = 236.5, lwd = 3, line.col = 4) # Plot using polar coordinates with binned angles
+
+
 
 # analyses ----------------------------------------------------------------
 #hist(join_df2$dist_m)  #unweighted
@@ -77,23 +90,21 @@ quan_95 <- wtd.quantile(join_df2$dist_m, weights = join_df2$normalised_weight, p
 lower_95 <- unname(quan_95[1])
 upper_95 <- unname(quan_95[2])
 
-#selfing
+## selfing
 selfing_id = join_df2[which(join_df2$dist_m == 0),]  #self fertilisation
 selfing_no = nrow(selfing_id)
 (selfing_prop = sum(selfing_id$normalised_weight) / sum(join_df2$normalised_weight))  #normalised selfing
 #most of these from individual (5/7) from 7_10. Interesting other fragments didnt have this though. 
 
-
-
-#non particpants
+## non participants
 meta3 <- meta2[complete.cases(meta2), ] # make sure import matches NA type
-part1 = data.frame(id = c(join_df2$moth_id , join_df2$fath_id))  #find parental reps particpating
+part1 = data.frame(id = c(join_df2$moth_id , join_df2$fath_id))  #find parental reps participating
 part2 = left_join(part1, meta, by  = 'id') %>% select(genotype ) %>%   distinct(genotype)
-(nrow(part2))  #32 particpants
+(nrow(part2))  #32 participants
 
 #participants = data.frame(id = c(unique(join_df2$moth_id), unique(join_df2$fath_id)))
 anti_join(meta3, part2,  by = 'genotype' ) %>%   distinct(genotype) %>% nrow()
-#25 individals not particpating - but this needs to cross check against fert data which may show additional particpiating mothers (not sequenced)
+#25 individuals not participating - but this needs to cross check against fert data which may show additional participating mothers (not sequenced)
 
 # plots -------------------------------------------------------------------
 
@@ -141,7 +152,9 @@ p2 = ggmap(map) +
   geom_point(data = join_df2, aes(x = lon.y, y = lat.y, color = "Father"), size = 3) +  # father, mapped to "Father"
   scale_color_manual(name = "Parent", values = c("Mother" = "blue", "Father" = "green")) +  # manual colour scale for the legend
   labs(x = "Longitude", y = "Latitude") +
-  theme_minimal()
+  theme_minimal()#+
+  #annotate("text", x = 134.4953, y = 7.3136, label = paste('test'), hjust = 1.1, vjust = -0.1, size = 5, color = "blue") # 
+p2
 #ggsave(filename = '2023palau_gen_zoomout.tiff',  path = "./plots", device = "tiff",  width = 5, height = 5)  #this often works better than pdf
 
 #zoomed out jitter attempt (not sure if better)
@@ -206,14 +219,11 @@ map <- get_googlemap(center = c(lon = join_df2$lon.x[8], lat = join_df2$lat.x[8]
     theme_sleek1())
 
 
-
 #grid.arrange(arrangeGrob(p2, p3, ncol = 1))
 grid.arrange(arrangeGrob(p4_1, p4_2, ncol = 2), arrangeGrob(p4_3, p4_4, ncol = 2))
 
 
-
 # parental pairwise crosses (based on mother genotypes) -------------------------------------------------------
-
 
 # Define a function that creates a plot for a given genotype
 plot_genotype <- function(genotype) {
@@ -228,37 +238,29 @@ plot_genotype <- function(genotype) {
     geom_point(data = subset_df, aes(x = lon.y, y = lat.y, color = "Father"), size = 3) +  # father, mapped to "Father"
     scale_color_manual(name = "Parent", values = c("Mother" = "blue", "Father" = "green")) +  # manual colour scale for the legend
     labs(x = "Longitude", y = "Latitude") +
-    theme_minimal()
+    theme_minimal()+
+  annotate("text", x = 134.49543, y = 7.3136, label = paste(genotype), hjust = 1.1, vjust = -0.1, size = 8, color = "blue") # annotation for mother genotype
+  
   return(p)
 }
 
-# Apply the function to each unique genotype using purrr::map
 plots <- map(unique(join_df2$genotype.x), plot_genotype)
+# to print each plot:
+#walk(plots, print)
 
-# Optionally, to print each plot:
-walk(plots, print)
-
-# You can also save the plots if needed, using ggsave
+#save plots
 walk2(plots, unique(join_df2$genotype.x), ~ggsave(path = "./plots/pairwise_crosses", filename = paste0("genotype_", .y, ".jpg"), plot = .x, width = 8, height = 6))
 
-## add to animation
+## Add to animation
 
-library(magick)
-# Specify the path where your images are stored
 img_dir <- "./plots/pairwise_crosses"  # Adjust this path
-# List all .jpg files in the directory
 image_files <- list.files(path = img_dir, pattern = "*.jpg", full.names = TRUE)
-
-# Read the images into a magick image object
 images <- image_read(image_files)
-
-# Animate the images to create a GIF, setting the delay to 1 frame per second (1 second per image)
 gif <- image_animate(images, fps = 0.5)  # 
 
 # Save the animated GIF
-image_write(gif, path = "./plots/compiled_maps.gif")
+#image_write(gif, path = "./plots/compiled_maps.gif")
 
 
-install.packages("dartR")
 
 

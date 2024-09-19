@@ -1,5 +1,10 @@
 # 2023 palau fert
 
+## notes
+# - need to crrect closer to water flow. containers at 142 degrees
+
+
+
 # 1. Load Libraries ------------------------------------------------------
 library(tidyverse)
 library(ggplot2)
@@ -38,17 +43,16 @@ data1$quality_score[data1$id == "7_05" & data1$spoke == 7] <- 0.5  # Set quality
 
 # 3. Data Exploration ----------------------------------------------------
 
-
-
 # Wrangling
 data2 <- data1[25:28, ] # only centre
 data3 <- data1[1:24, ] # only radial lines
 
 # Calculate degrees from a baseline (s1) and adjust by subtracting an offset (s5)
 deg_from_s1 <- c(26, 52, 78, 104, 130, 156)
-(deg_from_s5 <- deg_from_s1 - 104)
-data3$deg <- sort(rep(deg_from_s5, 4))
-
+deg_from_north  = c(77, 108, 124, 148, 173, 201) #taken from earth (radial 2:7)
+(deg_from_s5 <- deg_from_s1 - 104)   #146.5 deg . 
+deg_from_water_dir = deg_from_north - 146.5
+data3$deg <- sort(rep(deg_from_water_dir, 4))
 
 ##overall mean
 # sum of all embryos
@@ -108,8 +112,6 @@ new_data <- expand.grid(
 )
 new_data$spoke <- factor("s5") # Example, choose appropriately based on your model structure
 new_data$obs <- factor("001") # Assuming a single observation for prediction purposes
-
-# 2. Predict using the model
 new_data$predicted <- predict(md1, newdata = new_data, type = "response")
 
 # 3. Plotting

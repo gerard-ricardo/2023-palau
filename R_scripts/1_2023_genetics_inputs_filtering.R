@@ -142,8 +142,8 @@ data_genind_adult <- gl2gi(data_gl_filtered_adult)
 
 
 #save(data_gl_filtered, file = file.path("./Rdata", "data_gl_filtered.RData"))  #data_gl_filtered
-load("./Rdata/data_gl_filtered.RData")
+load("./Rdata/data_gl_filtered.RData")  #data_gl_filtered
 
 #save(data_genind_adult, file = file.path("./Rdata", "data_genind_adult.RData"))  #data_gl_filtered
-load("./Rdata/data_genind_adult.RData")
+load("./Rdata/data_genind_adult.RData")  #data_genind_adult
 
