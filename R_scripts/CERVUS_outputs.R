@@ -249,7 +249,8 @@ plots <- map(unique(join_df2$genotype.x), plot_genotype)
 #walk(plots, print)
 
 #save plots
-walk2(plots, unique(join_df2$genotype.x), ~ggsave(path = "./plots/pairwise_crosses", filename = paste0("genotype_", .y, ".jpg"), plot = .x, width = 8, height = 6))
+walk2(plots, unique(join_df2$genotype.x), ~ggsave(path = "./plots/pairwise_crosses", filename = paste0("genotype_", .y, ".jpg"), plot = .x, width = 8, 
+                                                  height = 6))
 
 ## Add to animation
 
