@@ -15,6 +15,7 @@ library(gridExtra)
 library(magick)
 library(geosphere)
 library(plotrix)
+library(networkD3)
 source("https://raw.githubusercontent.com/gerard-ricardo/data/master/theme_sleek2") # set theme in code
 source("https://raw.githubusercontent.com/gerard-ricardo/data/master/theme_sleek1") # set theme in code
 
@@ -62,6 +63,7 @@ join_df2$dist_m = as.numeric(join_df2$dist )
 
 # calculate angle between mum and fathers (not weighted)
 bin_width <- 20 # Define the bin width (e.g., 20 degrees)
+join_df2 <- join_df2 %>% mutate(angle = (bearing(cbind(lon.x, lat.x), cbind(lon.y, lat.y)) + 360) %% 360)
 join_df2 <- join_df2 %>% mutate(angle_binned = cut(angle, breaks = seq(0, 360, by = bin_width), include.lowest = TRUE, labels = seq(bin_width/2, 360 - bin_width/2, by = bin_width))) # Create a new column for the binned angles
 angle_counts_binned <- as.data.frame(table(join_df2$angle_binned)) # Create a table of binned angles and their counts
 colnames(angle_counts_binned) <- c("angle_binned", "count") # Rename columns for clarity
@@ -262,6 +264,44 @@ gif <- image_animate(images, fps = 0.5)  #
 # Save the animated GIF
 #image_write(gif, path = "./plots/compiled_maps.gif")
 
+
+
+# network sankey ----------------------------------------------------------
+
+#find counts of pairs
+links <- join_df2 %>%
+  select(genotype.x, genotype.y) %>%
+  count(genotype.x, genotype.y) %>%
+  mutate(source = paste0(genotype.x, "_dam"),  # Add 'x' to genotype.x
+         target = paste0(genotype.y, "_sire")) %>%  # Add 'y' to genotype.y
+  select(source, target, n)  # Select relevant columns
+
+#str(links)
+
+# The unique node names
+nodes <- data.frame(
+  name=c(as.character(links$source), as.character(links$target)) %>% 
+    unique())
+str(nodes)
+
+# match to numbers, not names
+links$IDsource <- match(links$source, nodes$name)-1 
+links$IDtarget <- match(links$target, nodes$name)-1
+str(links)
+
+# plot
+p <- sankeyNetwork(
+  Links = links,
+  Nodes = nodes,
+  Source = "IDsource",
+  Target = "IDtarget",
+  Value = "n",
+  NodeID = "name",
+  units = "TWh",
+  fontSize = 12,
+  nodeWidth = 5,
+  iterations = 0)        # ensure node order is as in data
+p
 
 
 
