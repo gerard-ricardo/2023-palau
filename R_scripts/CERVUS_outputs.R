@@ -1,4 +1,7 @@
 
+## notes,I think the weighting should reflect the fertilisation % data. Not larvae number
+
+
 
 # 1. Load Libraries ------------------------------------------------------
 library(tidyverse)
@@ -45,6 +48,7 @@ meta2 <- meta %>% select(c(id, lat, lon, genotype ))
 join_df1 <- left_join(data2, meta2, by = 'id')  #add mother lat lon
 join_df1 <- join_df1 %>% select(-id) %>% mutate(id = fath_id)  #reset id to fathers
 join_df2 <- left_join(join_df1, meta2, by = 'id')  #add father lat lon
+nrow(join_df2)
 
 #try normalizing to weight larvae
 larvae_count <- table(join_df2$moth_id)
@@ -97,6 +101,7 @@ selfing_id = join_df2[which(join_df2$dist_m == 0),]  #self fertilisation
 selfing_no = nrow(selfing_id)
 (selfing_prop = sum(selfing_id$normalised_weight) / sum(join_df2$normalised_weight))  #normalised selfing
 #most of these from individual (5/7) from 7_10. Interesting other fragments didnt have this though. 
+sum(selfing_id$normalised_weight[c(1,3)]) /sum(join_df2$normalised_weight)  #normalised with Adult 7 removed
 
 ## non participants
 meta3 <- meta2[complete.cases(meta2), ] # make sure import matches NA type
@@ -107,6 +112,28 @@ part2 = left_join(part1, meta, by  = 'id') %>% select(genotype ) %>%   distinct(
 #participants = data.frame(id = c(unique(join_df2$moth_id), unique(join_df2$fath_id)))
 anti_join(meta3, part2,  by = 'genotype' ) %>%   distinct(genotype) %>% nrow()
 #25 individuals not participating - but this needs to cross check against fert data which may show additional participating mothers (not sequenced)
+
+# no. sires and dams
+(distinct_sire = join_df2 %>% distinct(genotype.y) %>% nrow())   #25 sires
+join_df2 %>% distinct(genotype.x) %>% nrow()   #19 sires
+
+# median dams sired
+join_df2 %>% group_by(genotype.y) %>%                # Group by genotype.y
+  summarise(count = n_distinct(genotype.x)) %>% summarise(mean_count = mean(count))  
+#mean dams fert per sire was 1.72
+#
+# how many distinct dams did top 10% sire
+data3 = join_df2 %>% select(genotype.y, genotype.x) %>% distinct() 
+
+order = data3 %>%    # Select relevant columns                      # Remove duplicate rows
+  count(genotype.y) %>%           # Add count of each genotype.y
+  arrange(desc(n))  %>%  select(-n)     
+# Arrange by count in descending order
+
+left_join(order, data3)
+#top 3 sires -> 9 of 19 distinct dams = 47.4%. 
+
+
 
 # plots -------------------------------------------------------------------
 
@@ -136,11 +163,29 @@ p1
 
 # create map --------------------------------------------------------------
 
-map <- get_googlemap(center = c(lon = join_df2$lon.x[8], lat = join_df2$lat.x[8]), zoom = 20, color = "color", maptype = "satellite")
-ggmap(map) +
-  #geom_segment(join_df2, mapping = aes(x = lon.x, y = lat.x, xend = lon.y, yend = lat.y), color = "red", size = 1) +
-  geom_point(data = meta2, aes(x = lon, y = lat), color = "white", size = 3) +
-  labs(x = "Longitude", y = "Latitude") 
+# blank map, distance coloured
+# create lines connecting dams and sires
+lines_sf <- st_sfc(lapply(1:nrow(join_df2), function(i) {
+  st_linestring(rbind(c(join_df2$lon.x[i], join_df2$lat.x[i]),
+                      c(join_df2$lon.y[i], join_df2$lat.y[i])))}), crs = 4326)
+lines_sf <- st_sf(geometry = lines_sf, dist_m = join_df2$dist_m)
+
+ggplot() +
+  geom_sf(data = points_x, color = 'blue', size = 2) +
+  geom_sf(data = points_y, color = 'red', size = 2) +
+  geom_sf(data = lines_sf, aes(color = dist_m), size = 1, alpha = 0.5) +
+  scale_color_gradient(low="green", high="red") +
+  labs(title="Pairwise Crosses Between Sires and Dams",
+       color="Distance (m)") +
+  theme_minimal()
+
+
+
+# map <- get_googlemap(center = c(lon = join_df2$lon.x[8], lat = join_df2$lat.x[8]), zoom = 20, color = "color", maptype = "satellite")
+# ggmap(map) +
+#   #geom_segment(join_df2, mapping = aes(x = lon.x, y = lat.x, xend = lon.y, yend = lat.y), color = "red", size = 1) +
+#   geom_point(data = meta2, aes(x = lon, y = lat), color = "white", size = 3) +
+#   labs(x = "Longitude", y = "Latitude") 
 #ggsave(filename = '2023palau_design.tiff',  path = "./plots", device = "tiff",  width = 5, height = 5)  #this often works better than pdf
 
 
@@ -289,20 +334,113 @@ links$IDsource <- match(links$source, nodes$name)-1
 links$IDtarget <- match(links$target, nodes$name)-1
 str(links)
 
-# plot
+#colour by sire radial
+links$group = substr(links$target  , 1, 1)
+links$group <- as.factor(links$group)
+
+# Define a colour scale for the links based on the group factor
+link_colour_scale <- 'd3.scaleOrdinal()
+  .domain(["group1", "group2", "group3"])    # Replace with actual levels of links$group
+  .range(["#FF5733", "#33FF57", "#3357FF"])' # Replace with your desired colours
+
+
 p <- sankeyNetwork(
   Links = links,
   Nodes = nodes,
-  Source = "IDsource",
-  Target = "IDtarget",
+  Source = "IDtarget",
+  Target = "IDsource",
   Value = "n",
   NodeID = "name",
   units = "TWh",
   fontSize = 12,
-  nodeWidth = 5,
-  iterations = 0)        # ensure node order is as in data
+  nodeWidth = 10,
+  LinkGroup = "group", 
+  iterations = 1)        # ensure node order is as in data
 p
 
-options(viewer = NULL)
+
+
+# visnetwork --------------------------------------------------------------
+
+library(visNetwork)
+library(htmlwidgets)
+
+
+nodes <- data.frame(id = unique(c(join_df2$genotype.x, join_df2$genotype.y)))
+edges <- data.frame(from = join_df2$genotype.y, to = join_df2$genotype.x, value = join_df2$dist_m)
+
+visNetwork = visNetwork(nodes, edges) %>%
+  visEdges(arrows = "to") %>%
+  visOptions(highlightNearest = TRUE, nodesIdSelection = TRUE)
+
+
+#saveWidget(visNetwork, "./plots/visNetwork.html", selfcontained = TRUE)
+
+
+
+# igraph ------------------------------------------------------------------
+
+library(igraph)
+library(ggraph)
+
+# Create edges dataframe
+edges <- data.frame(
+  from = join_df2$genotype.x,
+  to = join_df2$genotype.y,
+  weight = join_df2$dist_m
+)
+
+# Create graph
+g <- graph_from_data_frame(d = edges, directed = TRUE)
+
+# Plot
+ggraph(g, layout = 'fr') +  # Fruchterman-Reingold layout
+  geom_edge_link(aes(edge_width = weight), alpha=0.5, color="gray") +
+  geom_node_point(size=5, aes(color=name)) +
+  geom_node_text(aes(label = name), vjust=1.5, size=3) +
+  theme_void() +
+  guides(color="none")
+
+
+
+# forecenet - not really showing much -------------------------------------
+
+
+# Create Nodes data frame
+Nodes <- links %>%
+  select(name = source, group) %>%
+  bind_rows(links %>% select(name = target, group)) %>%
+  distinct(name, .keep_all = TRUE) %>%
+  arrange(name)  # Optional: Arrange for better readability
+
+# Ensure 'group' is treated as a factor for categorical coloring
+Nodes$group <- as.factor(Nodes$group)
+
+# Assign a unique ID to each node (0-based index)
+Nodes <- Nodes %>%
+  mutate(ID = 0:(nrow(Nodes) - 1))
+
+
+# Create the force-directed network
+forceNetwork(
+  Links = links,
+  Nodes = Nodes,
+  Source = "IDsource",
+  Target = "IDtarget",
+  NodeID = "name",
+  Group = "group",
+  opacity = 0.8,
+  zoom = TRUE,
+  linkDistance = 100,
+  charge = -300,
+  fontSize = 12,
+  linkWidth = 1.5,
+  # Optionally, define a color scale
+  colourScale = JS("d3.scaleOrdinal()
+                    .domain([1,2,3,4,5,6,7,'c'])
+                    .range(['#1f77b4','#ff7f0e','#2ca02c','#d62728','#9467bd','#8c564b','#e377c2','#7f7f7f'])")
+)
+
+
 
 
