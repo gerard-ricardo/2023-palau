@@ -303,5 +303,6 @@ p <- sankeyNetwork(
   iterations = 0)        # ensure node order is as in data
 p
 
+options(viewer = NULL)
 
 
