@@ -39,7 +39,8 @@ data1$quality_score = 1
 data1$quality_score[data1$id == "5_05" & data1$spoke == 5] <- 0.5  # Set quality_score to 50 for id 5_05 and spoke 5
 data1$quality_score[data1$id == "7_05" & data1$spoke == 7] <- 0.5  # Set quality_score to 50 for id 7_05 and spoke 7
 
-
+#save(data1, file = file.path("./Rdata", "fert_data.RData"))
+load("./Rdata/fert_data.RData") #data1
 
 # 3. Data Exploration ----------------------------------------------------
 

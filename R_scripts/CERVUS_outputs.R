@@ -1,6 +1,6 @@
 
 ## notes,I think the weighting should reflect the fertilisation % data. Not larvae number
-
+# where is c2 and c4?
 
 
 # 1. Load Libraries ------------------------------------------------------
@@ -43,6 +43,7 @@ load("./Rdata/data_gl_filtered.RData")  #data_gl_filtered.RData
 meta = data_gl_filtered@other$ind.metrics
 meta = meta  %>% rename(id2 = id) %>% mutate(id = paste0("X", id2)) 
 meta2 <- meta %>% select(c(id, lat, lon, genotype ))
+meta2 <- meta2 %>% mutate(genotype = gsub("_5$", "_05", genotype))
 
 # join tables 
 join_df1 <- left_join(data2, meta2, by = 'id')  #add mother lat lon
@@ -53,6 +54,12 @@ nrow(join_df2)
 #try normalizing to weight larvae
 larvae_count <- table(join_df2$moth_id)
 join_df2$normalised_weight <- 1 / larvae_count[join_df2$moth_id]
+
+# join fert df
+load("./Rdata/fert_data.RData") #data1
+join_df2 = join_df2 %>% mutate(id = genotype.x)
+join_df2  = left_join(join_df2, data1, by = 'id')
+
 
 # calculate metrics -----------------------------------------------------
 # Convert the data frame to two separate sf objects with WGS 84 CRS for  GPS systems
@@ -133,6 +140,71 @@ order = data3 %>%    # Select relevant columns                      # Remove dup
 left_join(order, data3)
 #top 3 sires -> 9 of 19 distinct dams = 47.4%. 
 
+
+
+# stats -------------------------------------------------------------------
+
+#poisson - to assess sequeced  larvae
+unique_dams <- unique(data1$id, na.rm = T)   #all dams sampled for fert
+unique_sires <- unique(na.omit(meta2$genotype))
+all_pairs <- expand.grid(genotype.x = unique_dams, genotype.y = unique_sires)
+#observed_crosses <- join_df2 %>% select(genotype.x, genotype.y) %>% mutate(count = 1)
+observed_crosses_aggregated <- join_df2 %>% group_by(genotype.x, genotype.y) %>% summarise(count = n(), .groups = 'drop') #agreegate multiple pairwise crosses
+complete_data <-left_join(all_pairs, observed_crosses_aggregated, by = c("genotype.x", "genotype.y")) %>% mutate(count = replace_na(count, 0))
+meta2_selected <- meta2 %>% mutate(genotype.x = genotype, genotype.y = genotype) %>% select(genotype.x, genotype.y, lat, lon) %>% distinct()
+join_df3 = left_join(complete_data, meta2_selected_x, by = c("genotype.x"), relationship = "many-to-one") %>% rename(lat.x = lat, lon.x = lon)
+join_df3 = left_join(join_df3, meta2_selected_y, by = c("genotype.y"), relationship = "many-to-one") %>% rename(lat.y = lat, lon.y = lon)
+#remove c2 and c4 for the moment
+join_df3 <- join_df3[complete.cases(join_df3), ] # make sure import matches NA type
+points_x_proj <- st_as_sf(join_df3, coords = c("lon.x", "lat.x"), crs = 4326) %>% st_transform(crs = 32653)
+points_y_proj <- st_as_sf(join_df3, coords = c("lon.y", "lat.y"), crs = 4326) %>% st_transform(crs = 32653)
+join_df3$dist_m <- as.numeric(st_distance(points_x_proj, points_y_proj, by_element = TRUE))
+join_df3 <- join_df3 %>% mutate(angle = (bearing(cbind(lon.x, lat.x), cbind(lon.y, lat.y)) + 360) %% 360)
+data4 = data1 %>% select(id, suc, prop) %>% na.omit() %>% rename(genotype.x = id)
+#join_df4 = left_join(join_df3, data4, by = 'genotype.x') %>% mutate(p_s  = count/suc) %>% na.omit() 
+#remove females with no fert
+# Merge all dam-sire pairs with observed crosses without filtering
+join_df4 <- join_df3 %>%
+  left_join(data4, by = 'genotype.x') 
+
+# Create structural_zero indicator
+join_df4 <- join_df4 %>%
+  mutate(structural_zero = ifelse(suc == 0, 1, 0))
+
+# Calculate sampling fractions and adjust for sequencing proportion
+join_df4 <- join_df4 %>%
+  mutate(
+    p_s = ifelse(suc > 0, count / suc, NA),            # Proportion of crosses
+    p_sa = ifelse(!is.na(p_s), p_s * prop, NA),        # Adjusted by sequencing proportion
+    p_s2 = ifelse(!is.na(p_sa) & p_sa > 0, p_sa, 1e-10) # Assign small p_sa where p_sa = 0
+  )
+
+# Assign weights: 1 for structural zeros, p_sa for sampling zeros
+join_df4 <- join_df4 %>%
+  mutate(
+    weight = ifelse(structural_zero == 1, 1, p_sa)
+  )
+
+# Final data cleaning (optional: check for any remaining NAs)
+join_df4 <- join_df4 %>%
+  filter(!is.na(weight))
+
+# #standard poisson
+# poisson_model <- glm(count ~ dist_m + angle , family = poisson(link = "log"), data = join_df4)  #without offset
+# summary(poisson_model)
+# # poisson with offset
+# poisson_model_offset <- glm(count ~ dist_m + angle + offset(log(p_s2)), family = poisson(link = "log"), data = join_df4)
+# summary(poisson_model_offset)
+
+# zero inflated
+library(pscl)
+zip_model <- zeroinfl(count ~ dist_m + angle | dist_m + angle, data = join_df4, dist = "poisson")
+summary(zip_model)
+zinb_model_negbin <- zeroinfl(count ~ dist_m + angle | dist_m + angle, data = join_df4, dist = "negbin")
+summary(zinb_model_negbin)
+zip_model_offset <- zeroinfl(count ~ dist_m + angle  + offset(log(p_s2))| dist_m + angle , data = join_df4, dist = "poisson")
+summary(zip_model_offset)
+AIC(zip_model, zinb_model_negbin, zip_model_offset )
 
 
 # plots -------------------------------------------------------------------
