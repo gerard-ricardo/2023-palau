@@ -1,13 +1,13 @@
 
 ## notes,I think the weighting should reflect the fertilisation % data. Not larvae number
 # where is c2 and c4?
+# not quite sure about the offset used in the glm yet. 
 
 
 # 1. Load Libraries ------------------------------------------------------
 library(tidyverse)
 library(ggplot2)
 library(tidyr)
-library(dplyr)
 library(ggmap)
 library(units)
 library(sf)
@@ -19,6 +19,9 @@ library(magick)
 library(geosphere)
 library(plotrix)
 library(networkD3)
+library(circular)
+library(CircStats)
+library(dplyr)
 source("https://raw.githubusercontent.com/gerard-ricardo/data/master/theme_sleek2") # set theme in code
 source("https://raw.githubusercontent.com/gerard-ricardo/data/master/theme_sleek1") # set theme in code
 
@@ -34,7 +37,7 @@ data1$offsp_id <- as.factor(as.character(data1$Offspring.ID))
 data1$moth_id <- as.factor(as.character(data1$Mother.ID))
 data1$fath_id <- as.factor(as.character(data1$Candidate.father.ID))
 (data1 <- data1[grep("\\*", data1$Trio.confidence), ]) # Filter rows where 'Trio.confidence' contains '*'
-data2 = data1 %>% select(., c(offsp_id, moth_id, fath_id))
+data2 = data1 %>% dplyr::select(., c(offsp_id, moth_id, fath_id))
 data2 = data2 %>% mutate(id = moth_id)  #mother
 
 
@@ -42,12 +45,12 @@ data2 = data2 %>% mutate(id = moth_id)  #mother
 load("./Rdata/data_gl_filtered.RData")  #data_gl_filtered.RData
 meta = data_gl_filtered@other$ind.metrics
 meta = meta  %>% rename(id2 = id) %>% mutate(id = paste0("X", id2)) 
-meta2 <- meta %>% select(c(id, lat, lon, genotype ))
+meta2 <- meta %>% dplyr::select(c(id, lat, lon, genotype ))
 meta2 <- meta2 %>% mutate(genotype = gsub("_5$", "_05", genotype))
 
 # join tables 
 join_df1 <- left_join(data2, meta2, by = 'id')  #add mother lat lon
-join_df1 <- join_df1 %>% select(-id) %>% mutate(id = fath_id)  #reset id to fathers
+join_df1 <- join_df1 %>% dplyr::select(-id) %>% mutate(id = fath_id)  #reset id to fathers
 join_df2 <- left_join(join_df1, meta2, by = 'id')  #add father lat lon
 nrow(join_df2)
 
@@ -74,7 +77,10 @@ join_df2$dist_m = as.numeric(join_df2$dist )
 
 # calculate angle between mum and fathers (not weighted)
 bin_width <- 20 # Define the bin width (e.g., 20 degrees)
-join_df2 <- join_df2 %>% mutate(angle = (bearing(cbind(lon.x, lat.x), cbind(lon.y, lat.y)) + 360) %% 360)
+join_df2 <- join_df2 %>% mutate(angle = (bearing(cbind(lon.x, lat.x), cbind(lon.y, lat.y)) + 360) %% 360)  #angle of male realtive to female
+ds_angle = 326
+join_df2 <- join_df2 %>% mutate(ang_rel_ds = (bearing(cbind(lon.x, lat.x), cbind(lon.y, lat.y)) - ds_angle) %% 360, 
+                                ang_rel_ds = ifelse(ang_rel_ds > 180, 360 - ang_rel_ds, ang_rel_ds))  # Convert to range (-180, 180)
 join_df2 <- join_df2 %>% mutate(angle_binned = cut(angle, breaks = seq(0, 360, by = bin_width), include.lowest = TRUE, labels = seq(bin_width/2, 360 - bin_width/2, by = bin_width))) # Create a new column for the binned angles
 angle_counts_binned <- as.data.frame(table(join_df2$angle_binned)) # Create a table of binned angles and their counts
 colnames(angle_counts_binned) <- c("angle_binned", "count") # Rename columns for clarity
@@ -85,6 +91,10 @@ polar.plot(lengths = angle_counts_binned$count, polar.pos = angle_counts_binned$
 # to water flow (currently to radial line 5 )
 polar.plot(lengths = angle_counts_binned$count, polar.pos = angle_counts_binned$angle_binned, radial.lim = c(0, max(angle_counts_binned$count)), start = 236.5, lwd = 3, line.col = 4) # Plot using polar coordinates with binned angles
 
+# perform circular stats
+join_df2$angle_rad <- join_df2$angle * pi / 180
+angles_circular <- circular(join_df2$angle_rad, units = "radians")
+rayleigh.test(angles_circular)  #strong sig eefect
 
 
 # analyses ----------------------------------------------------------------
@@ -113,7 +123,7 @@ sum(selfing_id$normalised_weight[c(1,3)]) /sum(join_df2$normalised_weight)  #nor
 ## non participants
 meta3 <- meta2[complete.cases(meta2), ] # make sure import matches NA type
 part1 = data.frame(id = c(join_df2$moth_id , join_df2$fath_id))  #find parental reps participating
-part2 = left_join(part1, meta, by  = 'id') %>% select(genotype ) %>%   distinct(genotype)
+part2 = left_join(part1, meta, by  = 'id') %>% dplyr::select(genotype ) %>%   distinct(genotype)
 (nrow(part2))  #32 participants
 
 #participants = data.frame(id = c(unique(join_df2$moth_id), unique(join_df2$fath_id)))
@@ -130,11 +140,11 @@ join_df2 %>% group_by(genotype.y) %>%                # Group by genotype.y
 #mean dams fert per sire was 1.72
 #
 # how many distinct dams did top 10% sire
-data3 = join_df2 %>% select(genotype.y, genotype.x) %>% distinct() 
+data3 = join_df2 %>% dplyr::select(genotype.y, genotype.x) %>% distinct() 
 
 order = data3 %>%    # Select relevant columns                      # Remove duplicate rows
   count(genotype.y) %>%           # Add count of each genotype.y
-  arrange(desc(n))  %>%  select(-n)     
+  arrange(desc(n))  %>%  dplyr::select(-n)     
 # Arrange by count in descending order
 
 left_join(order, data3)
@@ -148,29 +158,28 @@ left_join(order, data3)
 unique_dams <- unique(data1$id, na.rm = T)   #all dams sampled for fert
 unique_sires <- unique(na.omit(meta2$genotype))
 all_pairs <- expand.grid(genotype.x = unique_dams, genotype.y = unique_sires)
-#observed_crosses <- join_df2 %>% select(genotype.x, genotype.y) %>% mutate(count = 1)
+#observed_crosses <- join_df2 %>% dplyr::select(genotype.x, genotype.y) %>% mutate(count = 1)
 observed_crosses_aggregated <- join_df2 %>% group_by(genotype.x, genotype.y) %>% summarise(count = n(), .groups = 'drop') #agreegate multiple pairwise crosses
 complete_data <-left_join(all_pairs, observed_crosses_aggregated, by = c("genotype.x", "genotype.y")) %>% mutate(count = replace_na(count, 0))
-meta2_selected <- meta2 %>% mutate(genotype.x = genotype, genotype.y = genotype) %>% select(genotype.x, genotype.y, lat, lon) %>% distinct()
-join_df3 = left_join(complete_data, meta2_selected_x, by = c("genotype.x"), relationship = "many-to-one") %>% rename(lat.x = lat, lon.x = lon)
+meta2_selected <- meta2 %>% mutate(genotype.x = genotype) %>% dplyr::select(genotype.x, lat, lon) %>% distinct() %>% na.omit()
+meta2_selected_y <- meta2 %>% mutate(genotype.y = genotype) %>% dplyr::select(genotype.y, lat, lon) %>% distinct() %>% na.omit()
+join_df3 = left_join(complete_data, meta2_selected, by = c("genotype.x"), relationship = "many-to-one") %>% rename(lat.x = lat, lon.x = lon)
 join_df3 = left_join(join_df3, meta2_selected_y, by = c("genotype.y"), relationship = "many-to-one") %>% rename(lat.y = lat, lon.y = lon)
 #remove c2 and c4 for the moment
 join_df3 <- join_df3[complete.cases(join_df3), ] # make sure import matches NA type
 points_x_proj <- st_as_sf(join_df3, coords = c("lon.x", "lat.x"), crs = 4326) %>% st_transform(crs = 32653)
 points_y_proj <- st_as_sf(join_df3, coords = c("lon.y", "lat.y"), crs = 4326) %>% st_transform(crs = 32653)
 join_df3$dist_m <- as.numeric(st_distance(points_x_proj, points_y_proj, by_element = TRUE))
-join_df3 <- join_df3 %>% mutate(angle = (bearing(cbind(lon.x, lat.x), cbind(lon.y, lat.y)) + 360) %% 360)
-data4 = data1 %>% select(id, suc, prop) %>% na.omit() %>% rename(genotype.x = id)
+#join_df3 <- join_df3 %>% mutate(angle = (bearing(cbind(lon.x, lat.x), cbind(lon.y, lat.y)) + 360) %% 360)
+join_df3 <- join_df3 %>% mutate(ang_rel_ds = (bearing(cbind(lon.x, lat.x), cbind(lon.y, lat.y)) - ds_angle) %% 360, 
+                                ang_rel_ds = ifelse(ang_rel_ds > 180, 360 - ang_rel_ds, ang_rel_ds))  # Convert to range (-180, 180), linear scale with 
+data4 = data1 %>% dplyr::select(id, suc, prop) %>% na.omit() %>% rename(genotype.x = id)
 #join_df4 = left_join(join_df3, data4, by = 'genotype.x') %>% mutate(p_s  = count/suc) %>% na.omit() 
 #remove females with no fert
 # Merge all dam-sire pairs with observed crosses without filtering
-join_df4 <- join_df3 %>%
-  left_join(data4, by = 'genotype.x') 
-
+join_df4 <- join_df3 %>% left_join(data4, by = 'genotype.x') 
 # Create structural_zero indicator
-join_df4 <- join_df4 %>%
-  mutate(structural_zero = ifelse(suc == 0, 1, 0))
-
+join_df4 <- join_df4 %>% mutate(structural_zero = ifelse(suc == 0, 1, 0))
 # Calculate sampling fractions and adjust for sequencing proportion
 join_df4 <- join_df4 %>%
   mutate(
@@ -178,7 +187,6 @@ join_df4 <- join_df4 %>%
     p_sa = ifelse(!is.na(p_s), p_s * prop, NA),        # Adjusted by sequencing proportion
     p_s2 = ifelse(!is.na(p_sa) & p_sa > 0, p_sa, 1e-10) # Assign small p_sa where p_sa = 0
   )
-
 # Assign weights: 1 for structural zeros, p_sa for sampling zeros
 join_df4 <- join_df4 %>%
   mutate(
@@ -189,6 +197,12 @@ join_df4 <- join_df4 %>%
 join_df4 <- join_df4 %>%
   filter(!is.na(weight))
 
+## data exploration
+hist(join_df4$dist_m)
+plot(join_df4$count~ (join_df4$dist_m))  
+plot(join_df4$count~ (join_df4$ang_rel_ds))  
+join_df4 = join_df4[which(join_df4$genotype.x != join_df4$genotype.y),]  #remove selfing
+
 # #standard poisson
 # poisson_model <- glm(count ~ dist_m + angle , family = poisson(link = "log"), data = join_df4)  #without offset
 # summary(poisson_model)
@@ -198,13 +212,21 @@ join_df4 <- join_df4 %>%
 
 # zero inflated
 library(pscl)
-zip_model <- zeroinfl(count ~ dist_m + angle | dist_m + angle, data = join_df4, dist = "poisson")
+zip_model <- zeroinfl(count ~ scale(dist_m) * scale(ang_rel_ds) | scale(dist_m) * scale(ang_rel_ds) , data = join_df4, dist = "poisson")
 summary(zip_model)
-zinb_model_negbin <- zeroinfl(count ~ dist_m + angle | dist_m + angle, data = join_df4, dist = "negbin")
+zinb_model_negbin <- zeroinfl(count ~ scale(dist_m) * scale(ang_rel_ds) | scale(dist_m) * scale(ang_rel_ds), data = join_df4, dist = "negbin")
 summary(zinb_model_negbin)
-zip_model_offset <- zeroinfl(count ~ dist_m + angle  + offset(log(p_s2))| dist_m + angle , data = join_df4, dist = "poisson")
-summary(zip_model_offset)
+zip_model_offset_add <- zeroinfl(count ~ scale(dist_m) + scale(ang_rel_ds) + offset(log(p_s2))| scale(dist_m) + scale(ang_rel_ds) , data = join_df4, dist = "poisson")
+summary(zip_model_offset_add)
+zip_model_offset_int <- zeroinfl(count ~ scale(dist_m) * scale(ang_rel_ds) + offset(log(p_s2))| scale(dist_m) * scale(ang_rel_ds) , data = join_df4, dist = "poisson")
+summary(zip_model_offset_int)
 AIC(zip_model, zinb_model_negbin, zip_model_offset )
+
+# Overdispersion
+E2 <- resid(zip_model_offset_int, type = "pearson")
+N  <- nrow(join_df4)
+p  <- length(coef(zip_model_offset_int))  
+sum(E2^2) / (N - p)
 
 
 # plots -------------------------------------------------------------------
@@ -387,11 +409,11 @@ gif <- image_animate(images, fps = 0.5)  #
 
 #find counts of pairs
 links <- join_df2 %>%
-  select(genotype.x, genotype.y) %>%
+  dplyr::select(genotype.x, genotype.y) %>%
   count(genotype.x, genotype.y) %>%
   mutate(source = paste0(genotype.x, "_dam"),  # Add 'x' to genotype.x
          target = paste0(genotype.y, "_sire")) %>%  # Add 'y' to genotype.y
-  select(source, target, n)  # Select relevant columns
+  dplyr::select(source, target, n)  # Select relevant columns
 
 #str(links)
 
@@ -480,8 +502,8 @@ ggraph(g, layout = 'fr') +  # Fruchterman-Reingold layout
 
 # Create Nodes data frame
 Nodes <- links %>%
-  select(name = source, group) %>%
-  bind_rows(links %>% select(name = target, group)) %>%
+  dplyr::select(name = source, group) %>%
+  bind_rows(links %>% dplyr::select(name = target, group)) %>%
   distinct(name, .keep_all = TRUE) %>%
   arrange(name)  # Optional: Arrange for better readability
 
