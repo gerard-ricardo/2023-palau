@@ -1,15 +1,22 @@
 # 2023 a hya pop density
 # 3-5 depth on the bottom
 
+# load libraries ----------------------------------------------------------
+library(dplyr)
+library(ggplot2)
+library(truncnorm)
+library(tidybayes)
+library(spatstat)
+source("https://raw.githubusercontent.com/gerard-ricardo/data/master/theme_sleek2") # set theme in code
+
+# import data -------------------------------------------------------------
 # read.excel <- function(header=TRUE,...) {read.table("clipboard",sep="\t",header=header,...)}
 # data1=read.excel() #read clipboard from excel
 # save(data1, file = file.path("./Rdata", "2023palau.natural.den.RData"))
 load("./Rdata/2023palau.natural.den.RData")
 
-library(dplyr)
-library(ggplot2)
 
-# 2 Labelling and wrangling -----------------------------------------------
+# labeling and wrangling -----------------------------------------------
 str(data1) # check data type is correct
 # data1$raw.x <- as.numeric(as.character(data1$raw.x))
 data1$side <- as.factor(as.character(data1$side)) # transect
@@ -17,21 +24,17 @@ data2 <- data1 %>% split(., data1$side)
 data2$left$neg <- -data2$left$dist_m_x
 data1 <- data.frame(y = data1$dist_m_y, x = c(data2$right$dist_m_x, data2$left$neg))
 
+# Data exploration ------------------------------------------------------
 
-# 3 Data exploration ------------------------------------------------------
-## Visualize data - plot data split at every factor
-
-source("https://raw.githubusercontent.com/gerard-ricardo/data/master/theme_sleek2") # set theme in code
 p0 <- ggplot() +
   geom_point(data1, mapping = aes(x = x, y = y), position = position_jitter(width = .02, height = .02), alpha = 0.50, size = 3)
 # p0 = p0 + facet_wrap(~trans)#+scale_x_log10(name ="XXXX")#+geom_smooth(data1, mapping = aes(x = raw.x, y = suc/tot))
 # p0= p0+ scale_y_continuous( limits = c(0, 1))
 p0
 
-
-# 4##spatial clustering###################
+# spatial clustering ------------------------------------------------------
 # mature
-library(spatstat)
+
 # data2 = split(data1, data1$mature)
 # data3 = data2$m
 
@@ -58,28 +61,19 @@ sd(dist)
 
 # density of colonies
 nrow(data1) / (5 * 50) # 0.304 col/m^2
-
-
-
-n_n.med <- lapply(n_n, median) # 0.71m apart
+n_n.med <- lapply(dist, median) # 0.71m apart
 n_n.mean_all <- mean(unlist(n_n.med))
 n_n.sd_all <- sd(unlist(n_n.med))
 
 # density of neigherest neighbout
 plot(density(unlist(dist)))
-
-
 par(mfrow = c(3, 1), mar = c(2, 2, 2, 2) + 0.1) # bottom, left, right, top
 plot(envelope(rslt2, fun = Kest, nsim = 780, nrank = 20)) # Envelopes of K-function: This is a hypothesis test
 plot(envelope(rslt2, Kest, correction = "Ripley", verbose = F))
 plot(envelope(rslt2, Lest, correction = "Ripley", verbose = F)) # this is often preferred over K test (transformed K)
-
-
 plot(density(rslt2), main = "Transect 1") # some of the clustering likely from the substrate
 
-
 # plot -------------------------------------------------------------
-
 # density
 p1 <- ggplot() +
   geom_density(aes(dist), alpha = 0.3, color = "steelblue", fill = "steelblue") +
@@ -90,15 +84,7 @@ p1 <- p1 + scale_x_continuous(name = "Nearest neighbour distance (m)")
 p1 <- p1 + scale_y_continuous(name = "Frequency")
 p1
 
-
-
-# size --------------------------------------------------------------------
-
-# load libraries ----------------------------------------------------------
-library(tidyverse)
-library(ggplot2)
-source("https://raw.githubusercontent.com/gerard-ricardo/data/master/theme_sleek2") # set theme in code
-
+# colony size --------------------------------------------------------------------
 
 # 1 Import data -----------------------------------------------------------
 # read.excel <- function(header=TRUE,...) {read.table("clipboard",sep="\t",header=header, na.strings=c("","-","na"),...)}
@@ -106,15 +92,13 @@ source("https://raw.githubusercontent.com/gerard-ricardo/data/master/theme_sleek
 # save(data1, file = file.path("./Rdata", "2023_palau_transect_all.RData"))
 load("./Rdata/2023_palau_transect_all.RData")
 
-
 # 2 Labelling and wrangling -----------------------------------------------
 str(data1) # check data type is correct
 data1$side <- as.factor(as.character(data1$side))
 data1$id <- as.factor(as.character(data1$id))
 data1$photo_ID <- as.factor(as.character(data1$photo_ID))
 
-
-# Wrangling
+## Wrangling
 # diameter
 quantile(data1$mean, c(0.025, 0.5, 0.975), na.rm = T)
 sd(data1$mean, na.rm = T)
@@ -131,17 +115,6 @@ p1 <- p1 + coord_cartesian(ylim = c(0.0, 0.03))
 p1 <- p1 + scale_x_continuous(name = "Nearest neighbour distance (m)")
 p1 <- p1 + scale_y_continuous(name = "Frequency")
 p1
-
-
-
-# visual check ------------------------------------------------------------
-
-load("C:/Users/gerar/OneDrive/1 Work/4 Writing/1 Allee effects/allee experiments/Rdata/2023palau.natural.den.RData")
-
-library(dplyr)
-library(ggplot2)
-library(truncnorm)
-
 
 # 2 Labelling and wrangling -----------------------------------------------
 str(data1) # check data type is correct
@@ -198,19 +171,13 @@ total_points_in_buffer <- sum(points_in_buffer)
 grid_area <- length(seq(0, 10, by = grid_size))^2
 (percent_cover <- (total_points_in_buffer / grid_area) * 100)
 
-
-
 # compare 2022 with 2023 crest slope --------------------------------------
-source("https://raw.githubusercontent.com/gerard-ricardo/data/master/theme_sleek1") # set theme in code
-
 load("./Rdata/2022_adult_nat_intercol.RData") # load 2022 adult
 df3 <- data.frame(dist = dist, habitat = "slope")
 df4 <- data.frame(dist = ad, habitat = "crest")
 df5 <- rbind(df3, df4)
 
 # Compare  distributions
-library(ggplot2)
-library(tidybayes)
 p1 <- ggplot(df5, aes(x = dist)) +
   geom_density(aes(group = habitat, color = habitat, fill = habitat), alpha = 0.3)
 p1 <- p1 + scale_fill_manual(values = c("steelblue4", "orchid4", "red"), name = "Habitat", labels = c("Reef slope", "Reef crest"), guide = guide_legend(override.aes = list(color = NA))) +
@@ -231,6 +198,3 @@ p1
 
 # ggsave(p1, filename = 'adult_densities.pdf',  path = "./plots", device = 'pdf',  width = 8, height = 5)  #this often works better than pdf
 
-
-# save(p1, file = file.path("./Rdata", "Adult_nat_intercol_plot.RData"))
-load("./Rdata/Adult_nat_intercol_plot.RData")
