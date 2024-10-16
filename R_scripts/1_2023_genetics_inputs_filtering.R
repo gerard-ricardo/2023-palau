@@ -69,7 +69,7 @@ data_gl_filtered <- gl.filter.secondaries(data_gl_filtered, method="random", ver
 
 #rdepth
 gl.report.rdepth(data_gl_filtered)
-#platy = 13.8 Generally 10 is considered min
+#???    Generally 10 is considered min
 data_gl_filtered <- gl.filter.rdepth(data_gl_filtered,  lower = 10, v = 3) # filter by loci callrate
 #indiv = 218 ind, 21260   loc, med depth = 23
 
@@ -98,7 +98,7 @@ data_gl_filtered <- data_gl_filtered[, match(list.match, data_gl_filtered$loc.na
 ## call rate ind (non missing data). low could indicate poor extract or reference genome or contamination.
 #individauls
 gl.report.callrate(data_gl_filtered, method = "ind") 
-# platy = 87%
+# Acro = ???
 pre_filt_ind <- data_gl_filtered@ind.names
 data_gl_filtered <- gl.filter.callrate(data_gl_filtered, method = "ind", threshold = 0.7, v = 3) # filter by ind callrate
 filt_ind <- data_gl_filtered@ind.names
@@ -131,6 +131,12 @@ data_genind <- gl2gi(data_gl_filtered)
 adults_indices <- which(data_gl_filtered@other$ind.metrics$stage == "adults")
 data_gl_filtered_adult <- data_gl_filtered[adults_indices, ]
 data_gl_filtered_adult@other$ind.metrics$stage <- droplevels(data_gl_filtered_adult@other$ind.metrics$stage)
+# unique aults
+data_gl_filtered_adult@other$ind.metrics <- data_gl_filtered_adult@other$ind.metrics %>%
+  mutate(rep = str_extract(id, "[^_]+$"), # Extract the last value after the last underscore in 'id'
+         rep = ifelse(is.na(rep) | rep == "<NA>", '1', rep)) 
+adults_uniq_ind <- which(data_gl_filtered_adult@other$ind.metrics$rep == "1")
+data_gl_adult_unique <- data_gl_filtered_adult[adults_uniq_ind, ]
 
 # Convert genind adults only
 data_genind_adult <- gl2gi(data_gl_filtered_adult)
@@ -143,6 +149,12 @@ data_genind_adult <- gl2gi(data_gl_filtered_adult)
 
 #save(data_gl_filtered, file = file.path("./Rdata", "data_gl_filtered.RData"))  #data_gl_filtered
 load("./Rdata/data_gl_filtered.RData")  #data_gl_filtered
+
+#save(data_gl_filtered_adult, file = file.path("./Rdata", "data_gl_filtered_adult.RData"))  #data_gl_filtered
+load("./Rdata/data_gl_filtered_adult.RData")  #data_gl_filtered_adult
+
+#save(data_gl_adult_unique, file = file.path("./Rdata", "data_gl_adult_unique.RData"))  
+load("./Rdata/data_gl_adult_unique.RData")  #data_gl_adult_unique
 
 #save(data_genind_adult, file = file.path("./Rdata", "data_genind_adult.RData"))  #data_gl_filtered
 load("./Rdata/data_genind_adult.RData")  #data_genind_adult

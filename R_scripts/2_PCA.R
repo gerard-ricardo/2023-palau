@@ -5,13 +5,13 @@
 # adult only ---------------------------------------------------------------------
 
 #quick plot
-pca = gl.pcoa(data_gl_filtered_adult)
-gl.pcoa.plot(glPca = pca, data_gl_filtered_adult)
+pca = gl.pcoa(data_gl_adult_unique)
+gl.pcoa.plot(glPca = pca, data_gl_adult_unique)
 
 # PCA Analysis
-pca_data <- tab(data_gl_filtered_adult, freq = TRUE, NA.method = "mean") %>% na.omit() # Convert to tabular format and omit NAs
+pca_data <- tab(data_gl_adult_unique, freq = TRUE, NA.method = "mean") %>% na.omit() # Convert to tabular format and omit NAs
 pca <- dudi.pca(pca_data, center = TRUE, scale = FALSE, nf = 2, scannf = FALSE) # Perform PCA
-pca_complete <- data.frame(pca$li, pop = data_gl_filtered_adult$pop) # Combine PCA results with population data
+pca_complete <- data.frame(pca$li, pop = data_gl_adult_unique$pop) # Combine PCA results with population data
 #use for adults
 #pca_complete <- data.frame(pca$li) # Combine PCA results with population data
 
@@ -46,7 +46,7 @@ pca_complete$Cluster <- as.factor(kmeans_result$cluster)
 # DBSCAN clustering
 # Find the appropriate eps value using kNNdistplot
 kNNdistplot(pca_data, k = 5)  #k-nearest neighbour
-elbow = 8.7 # Place this at the elbow of the line
+elbow = 29.3 # Place this at the elbow of the line
 abline(h = elbow, col = "red", lty = 2)  
 library(dbscan)
 # Function to perform DBSCAN clustering and plot results
@@ -71,20 +71,20 @@ for (eps in eps_values) {
   plot <- perform_dbscan(pca_data, pca_complete, eps)
   print(plot)
 }
-#The clustering contains 2 cluster(s) and 2 noise points (id = 12).
+#no clusters. not sure why noise not picked up
 
 
 # plotting
 pca_complete <- pca_complete %>%
   mutate(
-    Stage = ifelse(str_detect(row.names(pca_complete), "_"), "Adult", "Larva"),
-    MumID = str_sub(row.names(pca_complete), 1, -2),
-    RepID = str_sub(row.names(pca_complete), -1, -1),
-    NewID = paste0(Stage, "_", MumID, "_", RepID)
+    #Stage = ifelse(str_detect(row.names(pca_complete), "_"), "Adult", "Larva"),
+    MumID = str_extract(row.names(pca_complete), "^[^_]+"),
+    #RepID = str_sub(row.names(pca_complete), -1, -1),
+    NewID = paste0('Adu', "_", MumID)
   )
 
 data1 <- dplyr::arrange(pca_complete, Axis1) # 
-pca_complete <- pca_complete %>% mutate(across(c(Stage, MumID, RepID, NewID), as.factor))
+pca_complete <- pca_complete %>% mutate(across(c(MumID, NewID), as.factor))
 str(pca_complete)
 my_palette <- c(
   "dodgerblue", "firebrick", "mediumseagreen", "orchid", "darkorange", "gold",
@@ -99,10 +99,10 @@ if (unique_pops > length(my_palette)) {
   my_palette <- scales::hue_pal()(unique_pops)
 }
 
-#color individuals
 t2 <- ggplot(pca_complete, aes(x = Axis1, y = Axis2)) +
-  geom_point(aes(color = factor(pop)), shape = 22, size = 3, stroke = 1, alpha = 0.7, position = position_jitter(width = 0.1, height = 0.1)) +
-  geom_text_repel(aes(label = pop ), size = 3, max.overlaps = 105, point.padding = 0.5, box.padding = 0.5) +
+  geom_point(aes(fill = factor(pop), color = factor(pop)), shape = 22, size = 3, stroke = 1, alpha = 0.7, position = position_jitter(width = 0.1, height = 0.1)) +
+  geom_text_repel(aes(label = NewID), color = "grey50", size = 3, max.overlaps = 105, point.padding = 0.5, box.padding = 0.5) +
+  scale_fill_manual(values = scales::alpha(my_palette, 0.1)) + # Adjust the alpha for the fill colours
   scale_color_manual(values = my_palette) +
   #stat_ellipse(aes(x = Axis1, y = Axis2, group = pop, color = pop), level = 0.95, linetype = 2, size = 1) +
   theme_sleek2() +
@@ -113,9 +113,10 @@ t2 <- ggplot(pca_complete, aes(x = Axis1, y = Axis2)) +
   )
 t2
 
+
 # Convert the ggplot to an interactive plotly plot
-t2_interactive <- ggplotly(t2)
-t2_interactive
+# t2_interactive <- ggplotly(t2)
+# t2_interactive
 
 # 
 # #per cluster
@@ -212,7 +213,8 @@ pca_complete2$Cluster <- as.factor(kmeans_result$cluster)
 pca_complete2 <- pca_complete2 %>%
   mutate(
     MumID = str_sub(stage, 1, 3),
-    NewID = paste0(MumID, "_", genotype)
+    NewID = paste0(MumID, genotype),
+    color = ifelse(grepl("larvae", stage), "2", "1")
   )
 
 my_palette <- c(
@@ -229,14 +231,14 @@ if (unique_pops > length(my_palette)) {
 }
 
 # Plot with ggrepel for label lines
-head(pca_complete2)
 t2 <- ggplot(pca_complete2, aes(x = Axis1, y = Axis2)) +
-  geom_point(aes(fill = genotype, shape = stage, color = ifelse(grepl("larvae", stage), "red", "black")),
+  geom_point(aes(fill = genotype, shape = stage, color = color),
              size = 3, stroke = 1, alpha = 0.7, position = position_jitter(width = 0.1, height = 0.1)) +
-  geom_text_repel(aes(label = NewID), size = 3, max.overlaps = 100, point.padding = 0.5, box.padding = 0.5) +
+  geom_text_repel(aes(label = NewID, color = color),
+                  size = 3, max.overlaps = 80, point.padding = 0.7, box.padding = 0.6) +
   #stat_ellipse(aes(x = Axis1, y = Axis2, group = Cluster, color = Cluster), level = 0.95, linetype = 2, size = 1) + # Add ellipses around clusters
   scale_fill_manual(values = my_palette) +
-  scale_color_manual(values = c("1" = "dodgerblue", "2" = "salmon", "3" = "mediumseagreen", "red" = "red", "black" = "black")) +
+  scale_color_manual(values = c("1" = "grey", "2" = "lightcoral", "3" = "mediumseagreen", "red" = "red", "black" = "black", "lightcoral", 'grey')) +
   scale_shape_manual(values = c("adults" = 22, "larvae" = 21)) + # Set shapes: squares for adults and circles for larvae
   theme_sleek2() +
   labs(
@@ -245,5 +247,6 @@ t2 <- ggplot(pca_complete2, aes(x = Axis1, y = Axis2)) +
     color = "Cluster", fill = "Population", shape = "Stage") # Add labels to the axes and legend
 t2
 
-t2_interactive <- ggplotly(t2)
-t2_interactive
+
+# t2_interactive <- ggplotly(t2)
+# t2_interactive

@@ -1,7 +1,7 @@
 
 ##notes
 # use batch to workout clones/fragments
-
+# 5_10_1 and 5_10_2 not in same group, check labelling
 
 
 
@@ -13,12 +13,18 @@ library(adegenet)
 library(pegas)  
 library(dplyr)
 library(purrr)
+library(tidyverse)
+library(igraph)
+library(ggraph)
 
 # clones and genetic relatedness------------------------------------------------------------------
 
 # Perform MLG analysis
-mlg_analysis <- mlg(data_genind_adult, quiet = FALSE)
+mlg_analysis <- mlg(data_genind_adult)
 #82 distinct individuals - doesnt work again
+
+mlg_analysis <- mll(data_genind_adult, threshold = 0.02) # Adjust threshold value as needed
+
 
 #Compare relatedness on single individual vs all
 data_genind_adult@pop <- factor(rep("population1", nrow(data_genind_adult@tab))) #combine all
@@ -31,7 +37,7 @@ plot(density(adult_colonies_sort$Distance, main = "Genetic Distance Distribution
 
 #
 unique(adult_colonies_sort$Individual1)
-first_group = 'c20_2'
+first_group = '7_3_2'
 first_group_data <- adult_colonies_sort %>%
   filter(Individual1 == first_group) %>%
   mutate(Individual2 = factor(Individual2, levels = Individual2[order(Distance)]))
@@ -60,16 +66,34 @@ result <- map_df(individual_list, function(first_group) {
 })
 
 result$close_rel[result$Individual1 == first_group]
+result$close_rel
+
+# visualise groups 
+
+
+# Expand the list column into individual rows
+edges <- result %>%
+  unnest(close_rel) %>%
+  filter(!is.na(close_rel))  # Remove rows with NA values in close_rel
+graph <- graph_from_data_frame(edges, directed = FALSE)
+p0 <- ggraph(graph, layout = "fr") +  # fr = Fruchterman-Reingold layout for better separation
+  geom_edge_link(aes(edge_alpha = 0.5), show.legend = FALSE) +  # Draw edges
+  geom_node_point(color = "dodgerblue", size = 5) +  # Draw nodes
+  geom_node_text(aes(label = name), vjust = 1.5, hjust = 0.5, size = 3) +  # Add labels to nodes
+  theme_void()  # Clean up the background for a minimalist look
+
+p0
+
 
 
 
 
 # Calculate Nei's distance for additional insights (doesnt work)
-nei_dist <- nei.dist(data_genind,warning = TRUE)
-nei_dist_df <- as.data.frame(as.matrix(nei_dist))
-print(nei_dist_df)
-
-# Calculate Roger's distance for additional insights (deosnt work)
-rogers_dist <- rogers.dist(data_genind)
-rogers_dist_df <- as.data.frame(as.matrix(rogers_dist))
-print(rogers_dist_df)
+# nei_dist <- nei.dist(data_genind,warning = TRUE)
+# nei_dist_df <- as.data.frame(as.matrix(nei_dist))
+# print(nei_dist_df)
+# 
+# # Calculate Roger's distance for additional insights (deosnt work)
+# rogers_dist <- rogers.dist(data_genind)
+# rogers_dist_df <- as.data.frame(as.matrix(rogers_dist))
+# print(rogers_dist_df)
