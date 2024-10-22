@@ -1,37 +1,53 @@
 
 ##notes
 # use batch to workout clones/fragments
-# 5_10_1 and 5_10_2 not in same group, check labelling
-# COLONY output (palau 2) for clones aswell to confirm
+# COLONY output (palau 2) for clones aswell to confirm (did all ther filtering remove indiv?)
+#    - c11_1, c11_2 mismatch  (fine to join group 11, COLONY false negative). C11 may be somewhat continatmed (lots of hetero)
+#    -5_10_2, 5_10_1 mismatch   - likely mislabelled 3_5_1 with 5_10_1
+#    - 3_5_2 (no rep)
+#    - 2_10_1 (no rep)
+#    - 1_10_1 (no rep)
+#   -  c5_1, c5_2  mismatch - does seem weird, not clearly mislabelled but much worse than others. Possible contamination?
+#    - 1_5_  (no rep)
+#    - 1_3_  (no rep)
+#   - 2_5_1  (no rep)
+#   - 2_3_  (no rep)
+#    - 1_30_1 (no rep)
+
+# after corrections, 23 groups (assuming c5_1 is actually a rep
 
 # CloneIndex      Prob      Member1,Member2,Member3,Member4,Member5,Member6,Member7,Member8 
-# 1     1.000      c1_1,c1_2
-# 2     1.000      7_30_1,7_3_2,7_5_2,7_3_1,7_10_2,7_30_2,7_5_1,7_10_1
-# 3     1.000      c7_1,c7_2
-# 4     1.000      c11_1
-# 5     1.000      c16_1,c16_2
-# 6     1.000      c20_1,c20_2
-# 7     1.000      5_3_1,5_3_2,5_5_2,5_5_1,5_10_2
-# 8     1.000      4_3_2,4_10_2,4_5_1,4_10_1,4_3_1,4_5_2
-# 9     1.000      6_30_1,6_30_2,6_3_1,6_5_2,6_3_2,6_10_2,6_10_1,6_5_1
-# 10     1.000      3_3_2,3_3_1,3_10_2,3_5_2,3_10_1,5_10_1
-# 11     1.000      c11_2,c17_1,5_30_1,c17_2,5_30_2
-# 12     1.000      2_30_1,2_10_1,2_30_2
-# 13     1.000      c3_1,c3_2,c13_1,c13_2
-# 14     1.000      c8_1,c8_2
-# 15     1.000      c12_1,c12_2
-# 16     1.000      1_10_1
-# 17     1.000      3_30_2,4_30_,3_30_1,4_30_1,c10_1,c10_2
-# 18     1.000      c5_1
-# 19     1.000      c9_1,c9_2
-# 20     1.000      c18_1,c18_2
-# 21     1.000      1_5_,c14_1,c14_2,1_30_1
-# 22     0.818      c5_2
-# 23     1.000      c6_1,c6_2
-# 24     1.000      c19_1,c19_2
-# 25     1.000      1_3_
-# 26     1.000      2_5_1,2_3_
+# 1     1.000      c1_1,c1_2  (good)
+# 2     1.000      7_30_1,7_30_2, 7_3_1, 7_3_2, 7_5_1, 7_5_2, 7_10_1, 7_10_2 (good)
+# 3     1.000      c7_1,c7_2 (good)
 
+# 5     1.000      c16_1,c16_2 (good)
+# 6     1.000      c20_1,c20_2 (good)
+# 7     1.000      5_3_1,5_3_2,5_5_1, 5_5_2, 5_10_2 (missing rep 5_10_2)
+# 8     1.000      4_3_1, 4_3_2, 4_10_1, 4_10_2, 4_5_1, 4_5_2 (good)
+# 9     1.000      6_30_1,6_30_2,6_3_1,6_3_2, 6_5_1, 6_5_2,6_10_1,6_10_2 (good)
+# 10     1.000      3_3_1, 3_3_2, 3_10_1, 3_10_2, 3_5_2,3_5_1
+# 11     1.000      c11_2, c17_1,c17_2, 5_30_1,5_30_2, c11_1 
+# 12     1.000      2_30_1,2_30_2, 2_10_1 (good)
+# 13     1.000      c3_1,c3_2,c13_1,c13_2, c5_2 (good)
+# 14     1.000      c8_1,c8_2  (good)
+# 15     1.000      c12_1,c12_2  (good)
+# 16     1.000      1_10_1 (missing reps)
+# 17     1.000      3_30_1, 3_30_2, 4_30_1, 4_30_, c10_1, c10_2 (good)
+
+# 19     1.000      c9_1,c9_2 (good)
+# 20     1.000      c18_1,c18_2  (good)
+# 21     1.000      1_5_, c14_1, c14_2, 1_30_1 (missing reps)
+
+# 23     1.000      c6_1,c6_2 (good)
+# 24     1.000      c19_1,c19_2 (good)
+# 25     1.000      1_3_ (missing reps)
+# 26     1.000      2_5_1,2_3_ (missing reps)
+
+
+
+# genetic distance grousps
+#c11_1, c11_2, c17_1, c17_2, 5_30_1,5_30_2
 
 
 
@@ -66,10 +82,15 @@ plot(density(adult_colonies_sort$Distance, main = "Genetic Distance Distribution
 
 #
 unique(adult_colonies_sort$Individual1)
-first_group = '7_3_2'
+first_group = 'c5_1'
 first_group_data <- adult_colonies_sort %>%
   filter(Individual1 == first_group) %>%
-  mutate(Individual2 = factor(Individual2, levels = Individual2[order(Distance)]))
+  mutate(Individual2 = factor(Individual2, levels = Individual2[order(Distance)])) 
+
+(first_group_data_names <- adult_colonies_sort %>%
+  filter(Individual1 == first_group) %>%
+  mutate(Individual2 = factor(Individual2, levels = Individual2[order(Distance)])) %>% 
+  filter(Distance < 2000)  %>% reframe(Individual2) %>% as.vector())
 #individual by genetic distance
 p1 <- ggplot(first_group_data, aes(x = Individual2, y = Distance)) +
   geom_point() +
@@ -86,7 +107,7 @@ result <- map_df(individual_list, function(first_group) {
   first_group_data <- adult_colonies_sort %>%
     filter(Individual1 == first_group) %>%
     mutate(Individual2 = factor(Individual2, levels = Individual2[order(Distance)])) %>%
-    filter(Distance < 1000)  # Filter for Distance < 2000
+    filter(Distance < 3000)  # Filter for Distance < 2000
   # Store the results for each Individual1
   tibble(
     Individual1 = first_group,
@@ -98,8 +119,6 @@ result$close_rel[result$Individual1 == first_group]
 result$close_rel
 
 # visualise groups 
-
-
 # Expand the list column into individual rows
 edges <- result %>%
   unnest(close_rel) %>%
@@ -110,11 +129,20 @@ p0 <- ggraph(graph, layout = "fr") +  # fr = Fruchterman-Reingold layout for bet
   geom_node_point(color = "dodgerblue", size = 5) +  # Draw nodes
   geom_node_text(aes(label = name), vjust = 1.5, hjust = 0.5, size = 3) +  # Add labels to nodes
   theme_void()  # Clean up the background for a minimalist look
-
 p0
 
-
-
+#  checking hetero for evidence of contamination
+Hobs <- function(x) {
+  apply(tab(x), 1, function(ind) {
+    # calculate the number of loci that are heterozygous 
+    heterozygous_loci <- sum(ind == 1, na.rm = TRUE)
+    non_missing_loci <- sum(!is.na(ind))
+    heterozygous_loci / non_missing_loci
+  })
+}
+hetero <- Hobs(data_genind_adult)
+filt_hetero <- hetero[hetero > 0.17]
+barplot(hetero, las = 2) # Adjust the colour as needed
 
 
 # Calculate Nei's distance for additional insights (doesnt work)

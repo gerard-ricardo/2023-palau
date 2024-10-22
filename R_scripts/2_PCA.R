@@ -1,12 +1,15 @@
 #PCA
 
 
+## notes
+# adult PCA needs to be filtered for fragments 
+
 
 # adult only ---------------------------------------------------------------------
 
-#quick plot
-pca = gl.pcoa(data_gl_adult_unique)
-gl.pcoa.plot(glPca = pca, data_gl_adult_unique)
+## quick plot
+# pca = gl.pcoa(data_gl_adult_unique)
+# gl.pcoa.plot(glPca = pca, data_gl_adult_unique)
 
 # PCA Analysis
 pca_data <- tab(data_gl_adult_unique, freq = TRUE, NA.method = "mean") %>% na.omit() # Convert to tabular format and omit NAs
@@ -31,7 +34,6 @@ set.seed(123) # for reproducibility
 #(hopkins_stat <- hopkins(pca_data, n = nrow(pca_data) - 1))
 # Calculated values 0-0.3 indicate regularly-spaced data. Values around 0.5 indicate random data. Values 0.7-1 indicate clustered data.
 #PD = 0.14
-
 
 # K-means clustering
 set.seed(123) # for reproducibility
@@ -75,7 +77,7 @@ for (eps in eps_values) {
 
 
 # plotting
-pca_complete <- pca_complete %>%
+pca_complete2 <- pca_complete %>%
   mutate(
     #Stage = ifelse(str_detect(row.names(pca_complete), "_"), "Adult", "Larva"),
     MumID = str_extract(row.names(pca_complete), "^[^_]+"),
@@ -83,9 +85,9 @@ pca_complete <- pca_complete %>%
     NewID = paste0('Adu', "_", MumID)
   )
 
-data1 <- dplyr::arrange(pca_complete, Axis1) # 
-pca_complete <- pca_complete %>% mutate(across(c(MumID, NewID), as.factor))
-str(pca_complete)
+data1 <- dplyr::arrange(pca_complete2, Axis1) # 
+pca_complete2 <- pca_complete2 %>% mutate(across(c(MumID, NewID), as.factor))
+str(pca_complete2)
 my_palette <- c(
   "dodgerblue", "firebrick", "mediumseagreen", "orchid", "darkorange", "gold",
   "skyblue", "sandybrown", "palevioletred", "mediumturquoise", "khaki",
@@ -94,12 +96,12 @@ my_palette <- c(
 )
 
 # Extend the palette if necessary
-unique_pops <- length(unique(pca_complete$pop))
+unique_pops <- length(unique(pca_complete2$pop))
 if (unique_pops > length(my_palette)) {
   my_palette <- scales::hue_pal()(unique_pops)
 }
 
-t2 <- ggplot(pca_complete, aes(x = Axis1, y = Axis2)) +
+t2 <- ggplot(pca_complete2, aes(x = Axis1, y = Axis2)) +
   geom_point(aes(fill = factor(pop), color = factor(pop)), shape = 22, size = 3, stroke = 1, alpha = 0.7, position = position_jitter(width = 0.1, height = 0.1)) +
   geom_text_repel(aes(label = NewID), color = "grey50", size = 3, max.overlaps = 105, point.padding = 0.5, box.padding = 0.5) +
   scale_fill_manual(values = scales::alpha(my_palette, 0.1)) + # Adjust the alpha for the fill colours
