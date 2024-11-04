@@ -172,10 +172,13 @@ grid_area <- length(seq(0, 10, by = grid_size))^2
 (percent_cover <- (total_points_in_buffer / grid_area) * 100)
 
 # compare 2022 with 2023 crest slope --------------------------------------
-load("./Rdata/2022_adult_nat_intercol.RData") # load 2022 adult
+load("C:/Users/gerar/OneDrive/1_Work/4_Writing/1_Allee_effects/allee_experiments/Rdata/2022_adult_nat_intercol.RData") # load 2022 adult
 df3 <- data.frame(dist = dist, habitat = "slope")
 df4 <- data.frame(dist = ad, habitat = "crest")
 df5 <- rbind(df3, df4)
+intercol_dist_natural = df5
+save(intercol_dist_natural, file = file.path("./Rdata", "intercol_dist_natural.RData"))
+load("./Rdata/intercol_dist_natural.RData") #intercol_dist_natural
 
 # Compare  distributions
 p1 <- ggplot(df5, aes(x = dist)) +
