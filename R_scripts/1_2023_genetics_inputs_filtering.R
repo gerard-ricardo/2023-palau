@@ -1,4 +1,14 @@
-# 2023 Acropora hyacinthus ------------------------------------------------
+##Filtering
+
+##Workflow
+# 1) Run either this filtering or dDocent filtering
+# 2) Attach clone IDs (genotypes to data)
+# 3) Attach populations to data (PCA)
+
+
+
+
+
 
 # load libraries ----------------------------------------------------------
 #install.packages('dartr')
@@ -28,22 +38,24 @@ source("https://raw.githubusercontent.com/gerard-ricardo/data/master/theme_sleek
 # import data -------------------------------------------------------------
 #
 #meta_2023_acro <- read.csv("./data/Report_DAc24-9371_SNP_2_copy.csv", head = T, skip = 6) # make sure samples are in same order as in data_gl
-data_gl <- gl.read.dart(filename = "./data/Report_DAc24-9371_SNP_2_copy.csv", ind.metafile = "./data/2023_palau_meta.csv", topskip = 6)
-#Ids for individual metadata does not match the number of ids in the SNP data file. Maybe this is fine if a subset matches.
-#ind.metafile ids not matched were:
-# [1] "40"  "137" "196"
-
-# 5_10_1 must be the missing 3_5_1, they are genetically identical and labeling flagged in notes
-indNames(data_gl) <- gsub("5_10_1", "3_5_1", indNames(data_gl)) #
-# remove c5_1 as it doesn't seem to match any others (possible contamination?)
-data_gl <- data_gl[!indNames(data_gl) %in% "c5_1"] # Subset to exclude "c5_1"
-
-
-# recalculate metrics
-data_gl <- gl.recalc.metrics(data_gl, v = 3) # recalculate loci metrics
-
+# data_gl <- gl.read.dart(filename = "./data/Report_DAc24-9371_SNP_2_copy.csv", ind.metafile = "./data/2023_palau_meta.csv", topskip = 6)
+# #Ids for individual metadata does not match the number of ids in the SNP data file. Maybe this is fine if a subset matches.
+# #ind.metafile ids not matched were:
+# # [1] "40"  "137" "196"
+# 
+# 
+# 
+# # 5_10_1 must be the missing 3_5_1, they are genetically identical and labeling flagged in notes
+# indNames(data_gl) <- gsub("5_10_1", "3_5_1", indNames(data_gl)) #
+# # remove c5_1 as it doesn't seem to match any others (possible contamination?)
+# data_gl <- data_gl[!indNames(data_gl) %in% "c5_1"] # Subset to exclude "c5_1"
+# 
+# 
+# # recalculate metrics
+# data_gl <- gl.recalc.metrics(data_gl, v = 3) # recalculate loci metrics
+# 
 #save(data_gl, file = file.path("./Rdata", "2023_Acro_hyac_gl.RData"))
-#load("./Rdata/2023_Acro_hyac_gl.RData")  #data_gl
+load("./Rdata/2023_Acro_hyac_gl.RData")  #data_gl
 
 
 data_gl$other$loc.metrics
@@ -121,30 +133,11 @@ data_gl_filtered <- gl.recalc.metrics(data_gl_filtered, v = 3) # recalculate loc
 # list.match <- data_gl_filtered$loc.names[which(data_gl_filtered$other$loc.metrics$OneRatioSnp > 0.05 & data_gl_filtered$other$loc.metrics$OneRatioSnp < 0.95 & data_gl_filtered$other$loc.metrics$OneRatioRef < 0.95 & data_gl_filtered$other$loc.metrics$OneRatioRef > 0.05 & data_gl_filtered$other$loc.metrics$coverage > 5)] #remove loci based on minor allele frequency and low data coverage
 # data_gl_filtered <- data_gl_filtered[,match(list.match, data_gl_filtered$loc.names)]#keep only loci in the list above
 
-# population filtering and objects ----------------------------------------
-
-
-# look into genotype as population
-data_gl_filtered <- gl.reassign.pop(data_gl_filtered, as.pop = "id")
-data_gl_filtered
-
-
-# Convert GENIND OBJECT all indiv
-data_genind <- gl2gi(data_gl_filtered)
-
-# Filter out eggs and larvae to keep only adults
+# Filter for adults
 adults_indices <- which(data_gl_filtered@other$ind.metrics$stage == "adults")
 data_gl_filtered_adult <- data_gl_filtered[adults_indices, ]
 data_gl_filtered_adult@other$ind.metrics$stage <- droplevels(data_gl_filtered_adult@other$ind.metrics$stage)
-# unique aults
-data_gl_filtered_adult@other$ind.metrics <- data_gl_filtered_adult@other$ind.metrics %>%
-  mutate(rep = str_extract(id, "[^_]+$"), # Extract the last value after the last underscore in 'id'
-         rep = ifelse(is.na(rep) | rep == "<NA>", '1', rep)) 
-adults_uniq_ind <- which(data_gl_filtered_adult@other$ind.metrics$rep == "1")
-data_gl_adult_unique <- data_gl_filtered_adult[adults_uniq_ind, ]
-
-# Convert genind adults only
-data_genind_adult <- gl2gi(data_gl_filtered_adult)
+data_gl_filtered_adult@ind.names
 
 
 
@@ -156,11 +149,11 @@ data_genind_adult <- gl2gi(data_gl_filtered_adult)
 load("./Rdata/data_gl_filtered.RData")  #data_gl_filtered
 
 #save(data_gl_filtered_adult, file = file.path("./Rdata", "data_gl_filtered_adult.RData"))  #data_gl_filtered
-load("./Rdata/data_gl_filtered_adult.RData")  #data_gl_filtered_adult
+#load("./Rdata/data_gl_filtered_adult.RData")  #data_gl_filtered_adult
 
 #save(data_gl_adult_unique, file = file.path("./Rdata", "data_gl_adult_unique.RData"))  
-load("./Rdata/data_gl_adult_unique.RData")  #data_gl_adult_unique
+#load("./Rdata/data_gl_adult_unique.RData")  #data_gl_adult_unique
 
 #save(data_genind_adult, file = file.path("./Rdata", "data_genind_adult.RData"))  #data_gl_filtered
-load("./Rdata/data_genind_adult.RData")  #data_genind_adult
+#load("./Rdata/data_genind_adult.RData")  #data_genind_adult
 
