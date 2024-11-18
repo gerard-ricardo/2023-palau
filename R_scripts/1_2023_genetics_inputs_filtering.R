@@ -37,7 +37,7 @@ source("https://raw.githubusercontent.com/gerard-ricardo/data/master/theme_sleek
 
 # import data -------------------------------------------------------------
 #
-#meta_2023_acro <- read.csv("./data/Report_DAc24-9371_SNP_2_copy.csv", head = T, skip = 6) # make sure samples are in same order as in data_gl
+# meta_2023_acro <- read.csv("./data/Report_DAc24-9371_SNP_2_copy.csv", head = T, skip = 6) # make sure samples are in same order as in data_gl
 # data_gl <- gl.read.dart(filename = "./data/Report_DAc24-9371_SNP_2_copy.csv", ind.metafile = "./data/2023_palau_meta.csv", topskip = 6)
 # #Ids for individual metadata does not match the number of ids in the SNP data file. Maybe this is fine if a subset matches.
 # #ind.metafile ids not matched were:
@@ -45,8 +45,8 @@ source("https://raw.githubusercontent.com/gerard-ricardo/data/master/theme_sleek
 # 
 # 
 # 
-# # 5_10_1 must be the missing 3_5_1, they are genetically identical and labeling flagged in notes
-# indNames(data_gl) <- gsub("5_10_1", "3_5_1", indNames(data_gl)) #
+# # 5_10_1 must be the missing 3_05_1, they are genetically identical and labeling flagged in notes
+# indNames(data_gl) <- gsub("5_10_1", "3_05_1", indNames(data_gl)) #
 # # remove c5_1 as it doesn't seem to match any others (possible contamination?)
 # data_gl <- data_gl[!indNames(data_gl) %in% "c5_1"] # Subset to exclude "c5_1"
 # 
@@ -54,7 +54,7 @@ source("https://raw.githubusercontent.com/gerard-ricardo/data/master/theme_sleek
 # # recalculate metrics
 # data_gl <- gl.recalc.metrics(data_gl, v = 3) # recalculate loci metrics
 # 
-#save(data_gl, file = file.path("./Rdata", "2023_Acro_hyac_gl.RData"))
+# save(data_gl, file = file.path("./Rdata", "2023_Acro_hyac_gl.RData"))
 load("./Rdata/2023_Acro_hyac_gl.RData")  #data_gl
 
 
@@ -65,6 +65,17 @@ mean(data_gl$other$loc.metrics$coverage) # AH = 35.8
 min((data_gl$other$loc.metrics$coverage)) #  AH = 5
 max((data_gl$other$loc.metrics$coverage)) #  AH = 372
 sd(data_gl$other$loc.metrics$coverage) / sqrt(1996) #AH = 0.66
+
+
+
+
+# add on col sizes
+data_gl@other$ind.metrics <- data_gl@other$ind.metrics %>%
+  left_join(data1, by = c("genotype" = "ID"))
+
+head(data_gl@other$ind.metrics )
+head(data1)
+
 
 # data filtering ----------------------------------------------------------
 data_gl_filtered <- data_gl

@@ -27,7 +27,7 @@ source("https://raw.githubusercontent.com/gerard-ricardo/data/master/theme_sleek
 
 
 # 1 Import cervus out data -----------------------------------------------------------
-data1 <- read.csv(file = file.path("C:/Users/gerar/OneDrive/1_Work/4_Writing/1_Allee_effects/4 Palau genetics mixing/Cervus", "parentage_out1.csv"))
+(data1 <- read.csv(file = file.path("C:/Users/gerar/OneDrive/1_Work/4_Writing/1_Allee_effects_project/4 Palau genetics mixing/Cervus", "parentage_out1.csv")))
 
 
 

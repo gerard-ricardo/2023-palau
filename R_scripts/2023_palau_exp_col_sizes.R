@@ -8,7 +8,7 @@ source("https://raw.githubusercontent.com/gerard-ricardo/data/master/theme_sleek
 source("https://raw.githubusercontent.com/gerard-ricardo/data/master/theme_sleek3") # set theme in code
 
 
-# Import data -----------------------------------------------------------
+# Import data (from 2023palau_colony_sizes.xlsx) -----------------------------------------------------------
 # read.excel <- function(header = TRUE, ...) {
 #   read.table("clipboard", sep = "\t", header = header, na.strings = c("", "-", "na"), ...)
 # }
@@ -39,8 +39,11 @@ median(data1$total_mean_dia)
 
 #centre
 data2 = data1[grep("c", data1$ID),]   
+nrow(data2)
+skewness_value <- e1071::skewness(data2$total_mean_dia) # 0 = no skew
 mean(data2$total_mean_dia)
 median(data2$total_mean_dia)
+(quantile(data2$total_mean_dia))
 
 #spokes
 data3 = data1[!grepl("c", data1$ID),]    
