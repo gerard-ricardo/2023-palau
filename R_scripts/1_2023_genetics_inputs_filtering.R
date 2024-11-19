@@ -70,6 +70,7 @@ sd(data_gl$other$loc.metrics$coverage) / sqrt(1996) #AH = 0.66
 
 
 # add on col sizes
+load("./Rdata/col_sizes_exp.RData") #data1
 data_gl@other$ind.metrics <- data_gl@other$ind.metrics %>%
   left_join(data1, by = c("genotype" = "ID"))
 
@@ -154,7 +155,8 @@ data_gl_filtered_adult@ind.names
 
 
 # pre-ran filtering (note might be out of date) ---------------------------
-
+#save(data_gl, file = file.path("./Rdata", "data_gl.RData"))  #data_gl_filtered
+load("./Rdata/data_gl.RData")  #data_gl
 
 #save(data_gl_filtered, file = file.path("./Rdata", "data_gl_filtered.RData"))  #data_gl_filtered
 load("./Rdata/data_gl_filtered.RData")  #data_gl_filtered

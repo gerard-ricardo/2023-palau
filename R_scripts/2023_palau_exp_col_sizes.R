@@ -29,10 +29,9 @@ data1 <- data1[which(data1$notes == 'coral'),]  #remove dup rows
 
 duplicated(data1$ID)
 
-
-data1 <- data1 %>%
-  group_by(ID) %>%
-  summarise(total_mean_dia = sum(mean_dia, na.rm = TRUE))  %>% data.frame()
+# cleaned df
+data1 <- data1 %>% group_by(ID) %>% summarise(total_mean_dia = sum(mean_dia, na.rm = TRUE)) %>% data.frame()
+#save(data1, file = file.path("./Rdata", "col_sizes_exp.RData"))
 
 mean(data1$total_mean_dia)
 median(data1$total_mean_dia)
