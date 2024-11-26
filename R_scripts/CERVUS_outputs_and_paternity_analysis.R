@@ -2,6 +2,7 @@
 ## notes,I think the weighting should reflect the fertilisation % data. Not larvae number
 # where is c2 and c4?
 # not quite sure about the offset used in the glm yet. 
+# fro the network analysis, maybe try keeping all possible pairwise combination to provide structure, but colour the observ
 
 
 # 1. Load Libraries ------------------------------------------------------
@@ -26,13 +27,11 @@ source("https://raw.githubusercontent.com/gerard-ricardo/data/master/theme_sleek
 source("https://raw.githubusercontent.com/gerard-ricardo/data/master/theme_sleek1") # set theme in code
 
 
-# 1 Import cervus out data -----------------------------------------------------------
+# Import cervus out data and prep-----------------------------------------------------------
 (data1 <- read.csv(file = file.path("C:/Users/gerar/OneDrive/1_Work/4_Writing/1_Allee_effects_project/4 Palau genetics mixing/Cervus", "parentage_out1.csv")))
-
-
-
-# 2. Data prep -----------------------------------------------
-str(data1) # check data type is correct
+data1$Mother.ID <- sub("_5", "_05", data1$Mother.ID)
+data1$Candidate.father.ID <- sub("_5", "_05", data1$Candidate.father.ID)
+str(data1) # check data type is correc
 data1$offsp_id <- as.factor(as.character(data1$Offspring.ID))
 data1$moth_id <- as.factor(as.character(data1$Mother.ID))
 data1$fath_id <- as.factor(as.character(data1$Candidate.father.ID))
@@ -41,12 +40,14 @@ data2 = data1 %>% dplyr::select(., c(offsp_id, moth_id, fath_id))
 data2 = data2 %>% mutate(id = moth_id)  #mother
 
 
-# 1 Import CERVUS out data -----------------------------------------------------------
-load("./Rdata/data_gl_filtered.RData")  #data_gl_filtered.RData
-meta = data_gl_filtered@other$ind.metrics
+# Import meta data -----------------------------------------------------------
+load("./Rdata/data_gl.RData")  #data_gl.RData
+meta = data_gl@other$ind.metrics
 meta = meta  %>% rename(id2 = id) %>% mutate(id = paste0("X", id2)) 
 meta2 <- meta %>% dplyr::select(c(id, lat, lon, genotype ))
 #meta2 <- meta2 %>% mutate(genotype = gsub("_5$", "_05", genotype))
+"X7_05_2" %in% meta2$id
+
 
 # join tables 
 join_df1 <- left_join(data2, meta2, by = 'id')  #add mother lat lon
@@ -404,11 +405,14 @@ gif <- image_animate(images, fps = 0.5)  #
 #image_write(gif, path = "./plots/compiled_maps.gif")
 
 
-
+#==========================================================================================================
+join_df3 = join_df2 %>% dplyr::select(genotype.x, genotype.y, dist_m, prop) %>%  drop_na()
+  
+  
 # network sankey ----------------------------------------------------------
 
 #find counts of pairs
-links <- join_df2 %>%
+links <- join_df3 %>%
   dplyr::select(genotype.x, genotype.y) %>%
   count(genotype.x, genotype.y) %>%
   mutate(source = paste0(genotype.x, "_dam"),  # Add 'x' to genotype.x
@@ -474,26 +478,87 @@ visNetwork = visNetwork(nodes, edges) %>%
 
 # igraph ------------------------------------------------------------------
 
+# Load necessary libraries
 library(igraph)
-library(ggraph)
+library(dplyr)
 
-# Create edges dataframe
-edges <- data.frame(
-  from = join_df2$genotype.x,
-  to = join_df2$genotype.y,
-  weight = join_df2$dist_m
+# Summarize the data to count duplicates and get average distances
+edge_counts <- join_df3 %>%
+  group_by(genotype.x, genotype.y) %>%
+  summarise(
+    count = n(),                  # Number of times the pair occurs
+    dist_m = mean(dist_m)         # Average distance
+  ) %>%
+  ungroup() %>%
+  mutate(
+    genotype.x = as.character(genotype.x),
+    genotype.y = as.character(genotype.y)
+  ) %>% data.frame()
+
+# Create a list of unique genotypes for nodes
+nodes <- unique(c(edge_counts$genotype.x, edge_counts$genotype.y))
+nodes_df <- data.frame(name = nodes)
+
+# Create the graph
+g <- graph_from_data_frame(
+  d = edge_counts,
+  vertices = nodes_df,
+  directed = FALSE
 )
 
-# Create graph
-g <- graph_from_data_frame(d = edges, directed = TRUE)
+# Set edge attributes
+E(g)$weight <- edge_counts$count
+E(g)$dist_m <- edge_counts$dist_m
 
-# Plot
-ggraph(g, layout = 'fr') +  # Fruchterman-Reingold layout
-  geom_edge_link(aes(edge_width = weight), alpha=0.5, color="gray") +
-  geom_node_point(size=5, aes(color=name)) +
-  geom_node_text(aes(label = name), vjust=1.5, size=3) +
-  theme_void() +
-  guides(color="none")
+# Set edge width proportional to count
+max_width <- 5
+E(g)$width <- (E(g)$weight / max(E(g)$weight)) * max_width
+
+# Initialize the distance matrix
+genotypes <- nodes_df$name
+n <- length(genotypes)
+dist_mat <- matrix(Inf, nrow = n, ncol = n, dimnames = list(genotypes, genotypes))
+
+# Fill the distance matrix
+for (i in 1:nrow(edge_counts)) {
+  from <- edge_counts$genotype.x[i]
+  to <- edge_counts$genotype.y[i]
+  dist <- edge_counts$dist_m[i]
+  
+  # Update matrix values
+  dist_mat[from, to] <- dist
+  dist_mat[to, from] <- dist  # Symmetric matrix
+}
+
+# Replace Inf with a large number for MDS
+max_dist <- max(dist_mat[is.finite(dist_mat)])
+dist_mat[is.infinite(dist_mat)] <- max_dist * 2
+
+# Perform MDS to compute layout coordinates
+mds_result <- cmdscale(dist_mat, k = 2, eig = TRUE)
+layout_coords <- mds_result$points
+
+# Plot the graph without labels
+plot(
+  g,
+  layout = layout_coords,
+  vertex.size = 5,
+  vertex.label = NA,  # Disable default labels
+  vertex.color = "skyblue",
+  edge.width = E(g)$width,
+  edge.color = 'grey',
+  main = "Network"
+)
+
+# Add labels under the nodes
+text(
+  x = layout_coords[, 1],  # X-coordinates of nodes
+  y = layout_coords[, 2] - 0.0,  # Y-coordinates of nodes (adjusted slightly below)
+  labels = V(g)$name,  # Node labels
+  cex = 0.8,           # Text size
+  col = "black"        # Text color
+)
+
 
 
 
