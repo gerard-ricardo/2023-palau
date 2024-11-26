@@ -14,7 +14,9 @@ library(ggplot2)
 library(tidyr)
 library(glmmTMB)
 library(lubridate)
+library(gamm4)
 source("https://raw.githubusercontent.com/gerard-ricardo/data/master/theme_sleek2") # set theme in code
+source("https://raw.githubusercontent.com/gerard-ricardo/data/master/theme_sleek3") # set theme in code
 
 
 # 1 Import data -----------------------------------------------------------
@@ -160,22 +162,28 @@ new_data <- expand.grid(
   quality_score = 1  # Assuming this is required for consistency, though not used in the model
 )
 
+hist(new_data$predicted)
+quantile(new_data$predicted)
+
 # Add a dummy observation level for prediction purposes
 new_data$obs <- factor("001")  # Assuming a single observation for prediction
 new_data$predicted <- predict(md1$gam, newdata = new_data, type = "response")
 radial_indiv$residuals <- residuals(md1$gam, type = "deviance")
 
 p0 <- ggplot(new_data, aes(x = dist, y = deg)) +
-  geom_raster(aes(fill = predicted)) +  # 
-  scale_fill_gradient(low = "#3B9AB2", high = "#F21A00") +  # 
+  geom_raster(aes(fill = predicted)) +
+  scale_fill_gradient(low = "#3B9AB2", high = "#F21A00", breaks = seq(0.1, 0.9, by = 0.1)) +
   labs(x = "Distance from centre patch (m)", y = "Degrees from downstream", fill = "Fertilisation \n success") +
-  geom_contour(aes(z = predicted), breaks = seq(0.1, 0.9, by = 0.1), color = "white") +  # 
+  geom_contour(aes(z = predicted), breaks = seq(0.1, 0.9, by = 0.1), color = "white") +
   theme_minimal() +
-  geom_hline(yintercept = c(-78, -52, -26, 0, 26, 52), color = "#E1AF00", lty = 2)  #
-# add deviance
-p0 = p0 +  geom_point(data = radial_indiv, aes(x = dist, y = deg, color = residuals), size = 2)+
-  scale_color_gradient2(low = "blue", mid = "white", high = "red", midpoint = 0)
+  geom_hline(yintercept = c(-78, -52, -26, 0, 26, 52), color = "#E1AF00", lty = 2) +
+  theme(
+    legend.key.height = unit(1.5, "cm"), # Increase the height of legend keys
+    axis.title = element_text(size = 13), # Increase axis label size
+    axis.text = element_text(size = 12) # Increase tick label size
+  )# add deviance
+# p0 = p0 +  geom_point(data = radial_indiv, aes(x = dist, y = deg, color = residuals), size = 2)+
+#   scale_color_gradient2(low = "blue", mid = "white", high = "red", midpoint = 0)
 p0
 
-
-
+ggsave(p0, filename = '2023palau_fert.tiff',  path = "./plots", device = "tiff",  width = 8, height = 5)  #this often works better than pdf
