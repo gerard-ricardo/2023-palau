@@ -213,3 +213,17 @@ data_gl_filtered_adult <- data_gl_filtered[adults_indices, ]
 data_gl_filtered_adult@other$ind.metrics$stage <- droplevels(data_gl_filtered_adult@other$ind.metrics$stage)
 data_gl_filtered_adult@ind.names
   
+
+## BLAST prep
+# Check the lengths of TrimmedSequence in @other$loc.metrics
+trimmed_lengths <- nchar(as.character(data_gl_filtered@other$loc.metrics$TrimmedSequence))
+
+# Filter for loci with trimmed sequences > 100 bp
+filtered_loci <- trimmed_lengths > 68
+data_gl_filtered_blast <- data_gl_filtered[filtered_loci, ]
+
+# Check how many loci remain
+print(paste("Number of loci > 68 bp:", sum(filtered_loci)))
+
+gl2fasta(data_gl_filtered_blast, method=1, outpath = './data' , outfile='test.fasta',verbose=3)
+
