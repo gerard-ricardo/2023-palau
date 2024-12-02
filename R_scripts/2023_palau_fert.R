@@ -58,15 +58,18 @@ radial_indiv <- data1[which(data1$spoke != 'c'),]
 #   ))
 
 # Calculate degrees from north
-radial_indiv <- radial_indiv %>%
-  mutate(deg_from_north = case_when(spoke == 2 ~ 77, spoke == 3 ~ 108, spoke == 4 ~ 124, spoke == 5 ~ 148, spoke == 6 ~ 173,spoke == 7 ~ 201, TRUE ~ NA_real_  # Assign NA for any other values
-  ))  #taken from earth 
-#(deg_from_s5 <- deg_from_s1 - 104)   
+radial_indiv <- radial_indiv %>% mutate(deg_from_north = case_when(spoke == 2 ~ 77, spoke == 3 ~ 101, spoke == 4 ~ 124, 
+                                                                   spoke == 5 ~ 148, spoke == 6 ~ 173, spoke == 7 ~ 201, TRUE ~ NA_real_))  # Assign NA for any other values
+#taken from earth 
+#(deg_from_s5 <- deg_from_s1 - 104) 
+diff(unique(radial_indiv$deg_from_north))
+
 radial_indiv$deg = radial_indiv$deg_from_north - 146.5   #adjust to water dir
 range(radial_indiv$deg )
 radial_indiv$deg_rad <- radial_indiv$deg * pi / 180
 radial_indiv$sin_deg <- sin(radial_indiv$deg_rad)
 radial_indiv$cos_deg <- cos(radial_indiv$deg_rad)
+rad_lines = unique(radial_indiv$deg)
 
 ## overall mean and weighted means
 # sum of all embryos
@@ -143,7 +146,7 @@ p0 <- ggplot(new_data, aes(x = dist, y = deg)) +
   labs(x = "Distance from centre patch (m)", y = "Degrees from downstream", fill = "Fertilisation \n success") +
   geom_contour(aes(z = predicted), breaks = c(0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9), color = "white") + # Draw contour lines based on 'predicted'
   theme_minimal()
-p0 <- p0 + geom_hline(yintercept = c(-78, -52, -26, 0, 26, 52), color = "#E1AF00", lty = 2)
+p0 <- p0 + geom_hline(yintercept = rad_lines, color = "#E1AF00", lty = 2)
 p0
 
 
@@ -173,10 +176,11 @@ radial_indiv$residuals <- residuals(md1$gam, type = "deviance")
 p0 <- ggplot(new_data, aes(x = dist, y = deg)) +
   geom_raster(aes(fill = predicted)) +
   scale_fill_gradient(low = "#3B9AB2", high = "#F21A00", breaks = seq(0.1, 0.9, by = 0.1)) +
-  labs(x = "Distance from centre patch (m)", y = "Degrees from downstream", fill = "Fertilisation \n success") +
+  labs(x = "Distance from centre patch (m)", y = "Downstream of centre patch (degrees)", fill = "Fertilisation \n success") +
   geom_contour(aes(z = predicted), breaks = seq(0.1, 0.9, by = 0.1), color = "white") +
   theme_minimal() +
-  geom_hline(yintercept = c(-78, -52, -26, 0, 26, 52), color = "#E1AF00", lty = 2) +
+  scale_y_reverse() + 
+  geom_hline(yintercept = rad_lines, color = "#E1AF00", lty = 2) +
   theme(
     legend.key.height = unit(1.5, "cm"), # Increase the height of legend keys
     axis.title = element_text(size = 13), # Increase axis label size
