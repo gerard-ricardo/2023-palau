@@ -25,6 +25,8 @@ library(CircStats)
 library(dplyr)
 source("https://raw.githubusercontent.com/gerard-ricardo/data/master/theme_sleek2") # set theme in code
 source("https://raw.githubusercontent.com/gerard-ricardo/data/master/theme_sleek1") # set theme in code
+source("https://raw.githubusercontent.com/gerard-ricardo/data/master/theme_sleek3") # set theme in code
+
 
 
 # Import cervus out data and prep-----------------------------------------------------------
@@ -98,7 +100,7 @@ angles_circular <- circular(join_df2$angle_rad, units = "radians")
 rayleigh.test(angles_circular)  #strong sig eefect
 
 
-# analyses ----------------------------------------------------------------
+# Analyses ----------------------------------------------------------------
 #hist(join_df2$dist_m)  #unweighted
 #plot(density(join_df2$dist_m))  #unweighted
 (quan <- wtd.quantile(join_df2$dist_m, weights = join_df2$normalised_weight, probs=c(0, .25, .5, .83, 1)))
@@ -406,34 +408,75 @@ gif <- image_animate(images, fps = 0.5)  #
 
 
 #==========================================================================================================
+#mum = x, sire = y
 join_df3 = join_df2 %>% dplyr::select(genotype.x, genotype.y, dist_m, prop) %>%  drop_na()
-  
-  
+
+# Calculate counts of distinct crosses for each genotype.y
+cross_counts <- join_df3 %>%
+  group_by(genotype.y) %>%
+  summarise(distinct_crosses = n_distinct(genotype.x)) %>%
+  arrange(desc(distinct_crosses))  %>%  data.frame()
+
+join_df3 <- join_df3 %>%
+  left_join(cross_counts, by = "genotype.y") %>%
+  arrange(desc(distinct_crosses), genotype.y)
+
+
+plot(density(cross_counts$distinct_crosses))
+quan = quantile(cross_counts$distinct_crosses)
+p3 <- ggplot(cross_counts, aes(x = distinct_crosses)) +
+  geom_density(aes(fill = 'steelblue4'), alpha = 0.3) + 
+  coord_cartesian(ylim = c(0.0, .75)) +
+  scale_fill_manual(values = c("steelblue4", "white", "steelblue1", "white", "grey", "grey")) +
+  scale_color_manual(values = c("steelblue4", "grey", "steelblue1", "steelblue4", "grey", "grey", "grey", "grey"))+
+  tidybayes::stat_pointinterval(aes(y = 0, x = distinct_crosses), .width = c(.66, .95)) +
+  #geom_errorbarh(aes(y = 0, xmin = lower_66, xmax = upper_66), height = 0.0, color = "black", linetype = "solid", size = 1.5) +
+  #geom_errorbarh(aes(y = 0, xmin = lower_95, xmax = upper_95), height = 0.0, color = "black", linetype = "solid", size = .5)+
+  scale_y_continuous(name = "Probability density")+
+  scale_x_continuous(name = "Distinct pairwise crosses (no.)") +
+  theme_sleek3()+
+  geom_point(aes(x = unname(quan[3]), y = 0), color = "black", size = 3, shape = 21, fill = "black")
+p3
+#ggsave(p3, filename = 'dist_crosses.tiff',  path = "./plots", device = "tiff",  width = 6, height = 5)  #make sure to have .tiff on filename
+
+ 
 # network sankey ----------------------------------------------------------
 
-#find counts of pairs
+# Find counts of pairs
 links <- join_df3 %>%
   dplyr::select(genotype.x, genotype.y) %>%
   count(genotype.x, genotype.y) %>%
-  mutate(source = paste0(genotype.x, "_dam"),  # Add 'x' to genotype.x
-         target = paste0(genotype.y, "_sire")) %>%  # Add 'y' to genotype.y
-  dplyr::select(source, target, n)  # Select relevant columns
+  mutate(source = paste0(genotype.y, "_sire"),  # Add '_sire' to genotype.y (left side)
+         target = paste0(genotype.x, "_dam")) %>%  # Add '_dam' to genotype.x (right side)
+  dplyr::select(source, target, n) %>%
+  arrange(desc(n), target)
 
-#str(links)
+# The unique node names ordered by distinct_crosses for sources (sire nodes)
+sources_ordered <- cross_counts %>%
+  mutate(source = paste0(genotype.y, "_sire")) %>%
+  arrange(desc(distinct_crosses)) %>%
+  pull(source)
 
-# The unique node names
+# Order targets (dam nodes) by their first occurrence in links
+targets_ordered <- links %>%
+  arrange(target) %>%
+  distinct(target) %>%
+  pull(target)
+
+# Combine ordered nodes
 nodes <- data.frame(
-  name=c(as.character(links$source), as.character(links$target)) %>% 
-    unique())
-str(nodes)
+  name = c(sources_ordered, targets_ordered) %>%
+    unique()
+)
 
-# match to numbers, not names
-links$IDsource <- match(links$source, nodes$name)-1 
-links$IDtarget <- match(links$target, nodes$name)-1
-str(links)
+# Reorder links$source and links$target to reflect the new node order
+links <- links %>%
+  mutate(IDsource = match(source, nodes$name) - 1,
+         IDtarget = match(target, nodes$name) - 1) %>%
+  arrange(IDsource, IDtarget)  # Ensure consistent ordering
 
-#colour by sire radial
-links$group = substr(links$target  , 1, 1)
+# Colour by sire radial
+links$group <- substr(links$source, 1, 1)
 links$group <- as.factor(links$group)
 
 # Define a colour scale for the links based on the group factor
@@ -441,20 +484,23 @@ link_colour_scale <- 'd3.scaleOrdinal()
   .domain(["group1", "group2", "group3"])    # Replace with actual levels of links$group
   .range(["#FF5733", "#33FF57", "#3357FF"])' # Replace with your desired colours
 
-
-p <- sankeyNetwork(
+# Create the Sankey network
+p4 <- sankeyNetwork(
   Links = links,
   Nodes = nodes,
-  Source = "IDtarget",
-  Target = "IDsource",
+  Source = "IDsource",  # Sire (source, left side)
+  Target = "IDtarget",  # Dam (target, right side)
   Value = "n",
   NodeID = "name",
   units = "TWh",
   fontSize = 12,
   nodeWidth = 10,
-  LinkGroup = "group", 
-  iterations = 1)        # ensure node order is as in data
-p
+  LinkGroup = "group",
+  iterations = 0 # Disable dynamic node reordering to preserve manual order
+)
+p4
+
+ggsave(p4, filename = 'sankey_crosses.png',  path = "./plots", device = "png",  width = 6, height = 5)  #make sure to have .tiff on filename
 
 
 
