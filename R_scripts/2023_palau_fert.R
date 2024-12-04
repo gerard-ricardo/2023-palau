@@ -155,6 +155,9 @@ p0
 #try gamm
 md1 <- gamm(cbind(suc, tot - suc) ~ s(deg, k = 3) + dist,   random = list(obs = ~1), family = binomial,  method = "REML", verbosePQL = F, 
             data = radial_indiv)
+md1$gam
+coef(md1)
+summary(md1)
 AIC(md1)  #k = 3 best
 plot(fitted(md1$gam), residuals(md1$gam)) # fitted vs residuals
 abline(h = 0)

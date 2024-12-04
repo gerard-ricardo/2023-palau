@@ -13,7 +13,7 @@ gif1 <- image_animate(images, fps = fps)  #
 # Save the animated GIF
 image_write(gif, path = "./plots/compiled_dye1.gif")
 
-
+ 
 
 # raw
 img_dir <- "E:/1_UQ/Images/2023_palau/2023_04_05_dye_release/drone/subset"  # Adjust this path

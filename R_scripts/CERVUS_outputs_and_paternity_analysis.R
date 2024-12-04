@@ -101,6 +101,9 @@ rayleigh.test(angles_circular)  #strong sig eefect
 
 
 # Analyses ----------------------------------------------------------------
+#unweighted
+(quan <- quantile(join_df2$dist_m, weights = join_df2$normalised_weight, probs=c(0, .25, .5, .83, 1)))
+unname(quan[3])
 #hist(join_df2$dist_m)  #unweighted
 #plot(density(join_df2$dist_m))  #unweighted
 (quan <- wtd.quantile(join_df2$dist_m, weights = join_df2$normalised_weight, probs=c(0, .25, .5, .83, 1)))
@@ -237,7 +240,9 @@ sum(E2^2) / (N - p)
 # weighted density
 p1 <- ggplot(join_df2, aes(x = dist_m)) +
   #geom_density(aes(fill= 'steelblue4'), alpha = 0.3) +
-  geom_density(aes(weight = normalised_weight, fill = 'steelblue4'), alpha = 0.3) + # Include weight adjustment
+  #geom_density(aes(weight = normalised_weight, fill = 'steelblue4'), alpha = 0.3) + # Include weight adjustment
+  geom_density(aes(fill = 'steelblue4'), alpha = 0.3) + # Include weight adjustment
+  
   #tidybayes::stat_pointinterval(aes(y = 0, x = dist_m), .width = c(.66, .95))+
   geom_errorbarh(aes(y = 0, xmin = lower_66, xmax = upper_66), height = 0.0, color = "black", linetype = "solid", size = 1.5) +
   geom_errorbarh(aes(y = 0, xmin = lower_95, xmax = upper_95), height = 0.0, color = "black", linetype = "solid", size = .5)+
@@ -378,11 +383,12 @@ plot_genotype <- function(genotype) {
   p = ggmap(map) +
     geom_point(data = meta2, aes(x = lon, y = lat), color = "white", size = 3) +  # all colony positions
     geom_segment(data = subset_df, aes(x = lon.x, y = lat.x, xend = lon.y, yend = lat.y), color = "red", size = 1) +  # pairwise parental cross
-    geom_point(data = subset_df, aes(x = lon.x, y = lat.x, color = "Mother"), size = 3) +  # mother, mapped to "Mother"
     geom_point(data = subset_df, aes(x = lon.y, y = lat.y, color = "Father"), size = 3) +  # father, mapped to "Father"
+    geom_point(data = subset_df, aes(x = lon.x, y = lat.x, color = "Mother"), size = 3) +  # mother, mapped to "Mother"
     scale_color_manual(name = "Parent", values = c("Mother" = "blue", "Father" = "green")) +  # manual colour scale for the legend
     labs(x = "Longitude", y = "Latitude") +
     theme_minimal()+
+    theme(legend.text = element_text(size = 12), legend.title = element_text(size = 14), axis.title = element_text(size = 14)) + 
   annotate("text", x = 134.49543, y = 7.3136, label = paste(genotype), hjust = 1.1, vjust = -0.1, size = 8, color = "blue") # annotation for mother genotype
   
   return(p)
@@ -404,7 +410,7 @@ images <- image_read(image_files)
 gif <- image_animate(images, fps = 0.5)  # 
 
 # Save the animated GIF
-#image_write(gif, path = "./plots/compiled_maps.gif")
+image_write(gif, path = "./plots/compiled_maps.gif")
 
 
 #==========================================================================================================
