@@ -101,23 +101,67 @@ rayleigh.test(angles_circular)  #strong sig eefect
 
 
 # Analyses ----------------------------------------------------------------
+
+## Pairwise distances
 #unweighted
-(quan <- quantile(join_df2$dist_m, weights = join_df2$normalised_weight, probs=c(0, .25, .5, .83, 1)))
+(quan <- quantile(join_df2$dist_m, probs=c(0, .25, .5, .83, 1)))
 unname(quan[3])
 #hist(join_df2$dist_m)  #unweighted
 #plot(density(join_df2$dist_m))  #unweighted
-(quan <- wtd.quantile(join_df2$dist_m, weights = join_df2$normalised_weight, probs=c(0, .25, .5, .83, 1)))
+quan_66 <- wtd.quantile(join_df2$dist_m, probs = c(0.17, 0.83))
+quan_95 <- wtd.quantile(join_df2$dist_m, probs = c(0.025, 0.975))
+lower_66 <- quan_66[1]; upper_66 <- quan_66[2]
+lower_95 <- quan_95[1]; upper_95 <- quan_95[2]
+
+#weighted
+(quan_w <- wtd.quantile(join_df2$dist_m, weights = join_df2$normalised_weight, probs=c(0, .25, .5, .83, 1)))
 unname(quan[3])
 # Units: [m]
 # 0%       25%       50%       75%      100% 
 # 0.000000  1.621345  3.124454 10.830502 30.690024 
+quan_66_w <- wtd.quantile(join_df2$dist_m, weights = join_df2$normalised_weight, probs = c(0.17, 0.83))
+quan_95_w <- wtd.quantile(join_df2$dist_m, weights = join_df2$normalised_weight, probs = c(0.025, 0.975))
+lower_66_w <- quan_66_w[1]; upper_66_w <- quan_66_w[2]
+lower_95_w <- quan_95_w[1]; upper_95_w <- quan_95_w[2]
 
-quan_66 <- wtd.quantile(join_df2$dist_m, weights = join_df2$normalised_weight, probs = c(0.17, 0.83))
-lower_66 <- unname(quan_66[1])
-upper_66 <- unname(quan_66[2])
-quan_95 <- wtd.quantile(join_df2$dist_m, weights = join_df2$normalised_weight, probs = c(0.025, 0.975))
-lower_95 <- unname(quan_95[1])
-upper_95 <- unname(quan_95[2])
+# Overlay weighted and unweighted density plots with new styling
+# Define the colour palette
+cols <- c("Unweighted" = "#A2CFE3",  # pastel blue
+          "Weighted" = "#E3A2A8")    # pastel red
+
+# Overlay weighted and unweighted density plots with matching error bar colours
+p1 <- ggplot(join_df2, aes(x = dist_m)) +
+  geom_density(aes(fill = "Unweighted", color = "Unweighted"), alpha = 0.3) + # Unweighted density
+  geom_density(aes(weight = normalised_weight, fill = "Weighted", color = "Weighted"), alpha = 0.3) + # Weighted density
+  geom_errorbarh(aes(y = 0, xmin = lower_66, xmax = upper_66, color = "Unweighted"), 
+                 height = 0.0, linetype = "solid", size = 1.5, alpha = 0.5) + # Unweighted error bar
+  geom_errorbarh(aes(y = 0, xmin = lower_95, xmax = upper_95, color = "Unweighted"), 
+                 height = 0.0, linetype = "solid", size = .5, alpha = 0.5) + # Unweighted error bar
+  geom_errorbarh(aes(y = 0, xmin = lower_66_w, xmax = upper_66_w, color = "Weighted"), 
+                 height = 0.0, linetype = "solid", size = 1.5, alpha = 0.5) + # Weighted error bar
+  geom_errorbarh(aes(y = 0, xmin = lower_95_w, xmax = upper_95_w, color = "Weighted"), 
+                 height = 0.0, linetype = "solid", size = .5, alpha = 0.5) + # Weighted error bar
+  annotate("point", x = unname(quan[3]), y = 0, color = cols["Unweighted"], size = 3, shape = 21, fill = cols["Unweighted"]) + # Unweighted median
+  annotate("point", x = unname(quan_w[3]), y = 0, color = cols["Weighted"], size = 3, shape = 21, fill = cols["Weighted"]) + # Weighted median
+  geom_vline(xintercept = unname(quan[3]), color = '#A2CFE3', lty = 2) + # Unweighted median line
+  geom_vline(xintercept = unname(quan_w[3]), color = "#E3A2A8", lty = 2) + # Weighted median line
+  scale_fill_manual(values = cols, name = "Density Type") +
+  scale_color_manual(values = cols, name = "Density Type") +
+  coord_cartesian(ylim = c(0.0, 0.08)) +
+  scale_x_continuous(name = "Distance (m)") +
+  scale_y_continuous(name = "Probability density") +
+  theme_sleek2() +
+  theme(
+    legend.position = c(0.9, 0.9),
+    legend.text = element_text(size = rel(1), colour = "grey20"),
+    strip.text.x = element_text(colour = "grey30", size = 8, vjust = -7),
+    panel.spacing.y = unit(-1.5, "lines")
+  )
+
+p1
+
+#ggsave(p1, filename = '2023palau_intercol.tiff',  path = "./plots", device = "tiff",  width = 5, height = 5)  #this often works better than pdf
+
 
 ## selfing
 selfing_id = join_df2[which(join_df2$dist_m == 0),]  #self fertilisation
@@ -207,8 +251,8 @@ join_df4 <- join_df4 %>%
 hist(join_df4$dist_m)
 plot(join_df4$count~ (join_df4$dist_m))  
 plot(join_df4$count~ (join_df4$ang_rel_ds))  
-join_df4 = join_df4[which(join_df4$genotype.x != join_df4$genotype.y),]  #remove selfing
-
+join_df4 = join_df4[which(as.character(join_df4$genotype.x) != as.character(join_df4$genotype.y)),]  # remove selfing
+str(join_df4)
 # #standard poisson
 # poisson_model <- glm(count ~ dist_m + angle , family = poisson(link = "log"), data = join_df4)  #without offset
 # summary(poisson_model)
@@ -237,29 +281,6 @@ sum(E2^2) / (N - p)
 
 # plots -------------------------------------------------------------------
 
-# weighted density
-p1 <- ggplot(join_df2, aes(x = dist_m)) +
-  #geom_density(aes(fill= 'steelblue4'), alpha = 0.3) +
-  #geom_density(aes(weight = normalised_weight, fill = 'steelblue4'), alpha = 0.3) + # Include weight adjustment
-  geom_density(aes(fill = 'steelblue4'), alpha = 0.3) + # Include weight adjustment
-  
-  #tidybayes::stat_pointinterval(aes(y = 0, x = dist_m), .width = c(.66, .95))+
-  geom_errorbarh(aes(y = 0, xmin = lower_66, xmax = upper_66), height = 0.0, color = "black", linetype = "solid", size = 1.5) +
-  geom_errorbarh(aes(y = 0, xmin = lower_95, xmax = upper_95), height = 0.0, color = "black", linetype = "solid", size = .5)+
-  geom_point(aes(x = unname(quan[3]), y = 0), color = "black", size = 3, shape = 21, fill = "black")
-
-p1 <- p1 + geom_vline(xintercept = unname(quan[3]), color = "red", lty = 2)
-p1 <- p1 + theme_sleek2()
-p1 <- p1 + scale_fill_manual(values = c("steelblue4", "white", "steelblue1", "white", "grey", "grey")) +
-  scale_color_manual(values = c("steelblue4", "grey", "steelblue1", "steelblue4", "grey", "grey", "grey", "grey")) + theme(legend.position = "none") # nice
-p1 <- p1 + scale_y_continuous(name = "Probability density")
-p1 <- p1 + coord_cartesian(ylim = c(0.0, 0.08))
-p1 <- p1 + scale_x_continuous(name = "Distance (m)")
-p1 <- p1 + theme(strip.text.x = element_text(colour = "grey30", size = 8, vjust = -7))
-p1 <- p1 + theme(panel.spacing.y = unit(-1.5, "lines"))
-p1
-
-#ggsave(p1, filename = '2023palau_intercol.tiff',  path = "./plots", device = "tiff",  width = 5, height = 5)  #this often works better than pdf
 
 
 
