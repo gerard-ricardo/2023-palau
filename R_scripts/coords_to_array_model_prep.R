@@ -2,10 +2,15 @@
 # to the centre and infils each overlapping cell. Cells (should overlap if two colonies fall in the same cell since in reality no 
 #colonies overlapped). Everything is then converted back to a 1 metre grid. The output is fecund cm^2 at present. 
 
+#How to run (currently)
+# - resolution at 0.01
+# - spemap should be all colonies minus the same spoke if running a spoke. If running a centre, you might have to map spemap up
+# individually, but at the moment running all together which includes selffert bias
+
 
 ## Todo
 
-#Note: discretisation seems to increase fecund cm^2 above actual by a fair bit
+#Note: discretisation seems to increase fecund cm^2 above actual by a fair bit. 0.01 better than 0.1
 
 #NEEDS TO BE ADDED
 
@@ -22,16 +27,16 @@
 
 # load libraries ----------------------------------------------------------
 #install_github("envirometrix/plotKML")
-library(devtools)
+#library(devtools)
 library(sf)
 library(lattice)
 library(plotKML)
 library(RColorBrewer)
-library(dplyr)
+library(dartR)
 
 
 # inputs ------------------------------------------------------------------
-resolution <- 0.1  #grid resolution (only works for 0.01 and 0.1
+resolution <- 0.01  #grid resolution (only works for 0.01 and 0.1
 #colony_diam <- 44  #in cm
 
 
@@ -93,7 +98,7 @@ coords_idx$colony_diam <- coords$colony_diam
 for (i in 1:nrow(coords_idx)) {
   grid[coords_idx[i, "X"], coords_idx[i, "Y"]] <- grid[coords_idx[i, "X"], coords_idx[i, "Y"]] + 1
 }
-grid
+
 #View(grid)
 
 plot(coords_idx$X, coords_idx$Y, main = " Points Distribution", xlab = "X", ylab = "Y", pch = 19)
@@ -155,7 +160,9 @@ plot(coords_rotated$X, coords_rotated$Y, main = "Rotated Points Distribution", x
 text(coords_rotated$X, coords_rotated$Y, labels = coords_rotated$ID, pos = 3, cex = 0.7)
 unique(coords_rotated)
 
-# Extract spokes
+
+# extract spe and egg maps ------------------------------------------------
+
 coords_rotated$ID
 spoke_1 <- c("1_05", "1_3", "1_10", "1_30")
 spoke_2 <- c("2_05", "2_3", "2_10", "2_30")
@@ -170,147 +177,19 @@ spokes <- coords_rotated %>% dplyr::filter(., ID %in% all_spokes)
 centre <- coords_rotated %>% dplyr::filter(!(ID %in% all_spokes))
 all_colonies = coords_rotated
 
-# to map a single colony
-#ID2 = "c19"
-#target <- coords_rotated %>% dplyr::filter(., ID == ID2)
-#rand_center = list('xc13' = xc13, 'xc5' = xc5, 'xc10' = xc10,'xc19' = xc19)
+## to map a single colony
+ID2 = "c19"
+target <- coords_rotated %>% dplyr::filter(., ID == ID2)
+#'c13' 'c5' 'c10' 'c19'   #these are the random centre
 
 
 ## to map all other or multiple colonies
-# centres <- c("0089", "0093", "0098", "0101")  #manual random test
-target <- coords_rotated %>% dplyr::filter(., ID %in% all_colonies$ID)
+# manual_centres <- c("0089", "0093", "0098", "0101")  #manual random test
+#target <- coords_rotated %>% dplyr::filter(., ID %in% all_colonies$ID)  #all colonies for spemap
 
-
+# find accurate fecund area
 target$fecund_area = pi * (target$colony_diam / 2)^2 * 0.7
 sum(target$fecund_area)
-
-## selected subset function
-# myfun1 <- function(full_patch, subset_patch, colony_diam, resolution) {
-#   coords1 <- full_patch
-#   coords2 <- subset_patch
-#   # Clear the grid to repopulate it
-#   c(max(coords1$X), max(coords1$Y))
-#   grid <- array(0, dim = c(10^ceiling(log10( max(coords1$X))), 10^ceiling(log10(max(coords1$Y)))*0.8))
-#   dim(grid)
-#   coords1$Y <- round((dim(grid)[2]/2 - max(coords1$Y)/2) +  coords1$Y  , 0)  #centre y's
-#   coords1$X <-coords1$X + ((dim(grid)[1]) -   max(coords1$X)-2 )
-#   coords1 <- coords1[coords1$ID %in% coords2$ID, ]
-# 
-#   # Repopulate the grid with rotated coordinates
-#   for (i in 1:nrow(coords1)) {
-#     # Convert to integer indices
-#     x_idx <- (coords1[i, 1])
-#     y_idx <- (coords1[i, 2])
-#     grid[x_idx, y_idx] <- grid[x_idx, y_idx] + 1
-#   }
-# 
-#   dim(grid)
-#   # Plotting the rotated grid
-#   # coul2 <- colorRampPalette(brewer.pal(8, "Purples"))(25)
-#   # levelplot(t(apply(grid, 2, rev)),
-#   #   col.regions = coul2, xlab = "Transverse",
-#   #   ylab = "Longitudinal", main = "Conc. (cells/m^3)"
-#   # )
-# 
-#   # save(grid, file = file.path("./Rdata", "2023_palau_fine_grid.RData"))
-#   # load("./Rdata/2023_palau_fine_grid.RData") # grid
-# 
-#   # add colony border -------------------------------------------------------
-# 
-#   colony_diam_meters <- colony_diam / 100  # Convert cm to meters
-#   buffer_radius <- (colony_diam_meters / 2) / resolution
-#   (row_col_spe <- row(grid[, ])[which(!grid[, ] == 0)]) # finds all row vals
-#   (col_col_spe <- col(grid[, ])[which(!grid[, ] == 0)])
-#   df <- data.frame(x = row_col_spe, y = col_col_spe)
-#   # Generate grid points, considering the resolution
-#   grid_points <- expand.grid(x = seq(1, nrow(grid) * resolution, by = resolution),
-#                              y = seq(1, ncol(grid) * resolution, by = resolution))
-#   # find all cells within the buffer radius using hypot distance
-#   points_in_buffer <- sapply(1:nrow(grid_points), function(i) {
-#     any(sqrt((df$x - grid_points$x[i])^2 + (df$y - grid_points$y[i])^2) < buffer_radius)
-#   })
-#   grid1 <- grid
-#   # Add 1 in all True grid points
-#   for (i in 1:nrow(grid_points)) {
-#     # Check if the point is within the buffer radius
-#     if (points_in_buffer[i]) {
-#       # Convert grid points to matrix indices and mark them
-#       grid1[grid_points$x[i], grid_points$y[i]] <- 1
-#     }
-#   }
-# 
-#   # save(grid1, file = file.path("./Rdata", "2023pal_fine_border.RData"))
-#   # load("./Rdata/2023pal_fine_border.RData") # grid1
-# 
-#   # plot using df
-#   grid1_df <- expand.grid(X = 1:nrow(grid1), Y = 1:ncol(grid1))
-#   grid1_df$Value <- as.vector(grid1)
-#   grid1_df <- subset(grid1_df, Value != 0) # extract pos values
-#   plot(grid1_df$X, grid1_df$Y,
-#     col = ifelse(grid1_df$Value == 1, "red", "blue"), pch = 19,
-#     main = "Grid Points Distribution", xlab = "Long", ylab = "Trans", xlim = c(1, dim(grid1)[1]), ylim = c(1, dim(grid1)[2])
-#   )
-# 
-#   # matrix plot for subset (slow)
-#   dim(grid1)
-#   # coul <- colorRampPalette(brewer.pal(8, "Reds"))(25)
-#   # high_res_plot <- levelplot(t(apply(grid1[1900:2300, 2800:3400], 2, rev)),
-#   #                         col.regions = coul, xlab = "Transverse",
-#   #                         ylab = "Longitudinal", main = "Conc. (cells/m^3)"
-#   # )
-#   # high_res_plot
-# 
-#   # convert back to 1 m grid ------------------------------------------------
-#   # Dimensions of the original fine resolution buffer
-#   res_back = 1/ resolution
-#   finex_dim <- nrow(grid1) - 1 # Assuming square for simplicity
-#   finey_dim <- nrow(grid1) - 1 # Assuming square for simplicity
-#   # New grid dimensions for 1m resolution (assuming fine_dim is multiple of 100)
-#   coarsex_dim <- finex_dim / res_back
-#   coarsey_dim <- finex_dim / res_back
-#   # Initialize new matrix for coarse resolution
-#   grid1_coarse <- matrix(0, nrow = coarsex_dim, ncol = coarsey_dim)
-#   # Function to aggregate 1 values in blocks, dynamically adjusting block size
-#   block_size <- res_back # You can adjust this based on the actual dimensions of your matrices
-#   aggregate_values <- function(mat, block_size) {
-#     dim_x <- nrow(mat)
-#     dim_y <- ncol(mat)
-#     coarse_dim_x <- ceiling(dim_x / block_size) # new size
-#     coarse_dim_y <- ceiling(dim_y / block_size)
-#     coarse_mat <- matrix(0, nrow = coarse_dim_x, ncol = coarse_dim_y) # new blank grid
-# 
-#     for (i in seq(1, dim_x, by = block_size)) {
-#       for (j in seq(1, dim_y, by = block_size)) {
-#         end_i <- min(i + block_size - 1, dim_x)
-#         end_j <- min(j + block_size - 1, dim_y)
-#         # Sum the '1' values in the current block
-#         block_sum <- sum(mat[i:end_i, j:end_j] == 1)
-#         # Assign this sum to the corresponding cell in the coarse resolution matrix
-#         coarse_mat[(i - 1) / block_size + 1, (j - 1) / block_size + 1] <- block_sum
-#       }
-#     }
-#     return(coarse_mat)
-#   }
-#   grid1_coarse <- aggregate_values(grid1, block_size)
-# 
-#   # plot using df
-#   grid2_df <- expand.grid(X = 1:nrow(grid1_coarse), Y = 1:ncol(grid1_coarse))
-#   grid2_df$Value <- as.vector(grid1_coarse)
-#   grid2_df <- subset(grid2_df, Value != 0) # extract pos values
-#   plot(grid2_df$X, grid2_df$Y,
-#     col = ifelse(grid2_df$Value == 1, "red", "blue"), pch = 19,
-#     main = "Grid Points Distribution", xlab = "X", ylab = "Y",
-#   )
-# 
-#   # grid plot
-#   # levelplot(t(apply(grid1_coarse, 2, rev)),
-#   #   col.regions = coul, xlab = "Transverse",
-#   #   ylab = "Longitudinal", main = "Conc. (cells/m^3)"
-#   # )
-# 
-#   grid_coarse <- grid1_coarse
-#   return(grid_coarse)
-# }
 
 
 myfun1 <- function(full_patch, subset_patch, resolution) {
@@ -324,6 +203,8 @@ myfun1 <- function(full_patch, subset_patch, resolution) {
   grid_dims_x <- 10^ceiling(log10(max(coords1$X))) + offset
   grid_dims_y <- (10^ceiling(log10(max(coords1$Y))) + offset) * 0.8  #0.8 makes grid a bit thinner
   grid <- array(0, dim = c(grid_dims_x, grid_dims_y))
+  grid_egg <- array(0, dim = c(grid_dims_x, grid_dims_y))  # define egg grid
+  
   dim(grid)
   # Center the coordinates within the grid
   coords1$Y <- round((dim(grid)[2] / 2 - max(coords1$Y) / 2) + coords1$Y, 0)  # Center Y
@@ -348,51 +229,71 @@ myfun1 <- function(full_patch, subset_patch, resolution) {
   
   
   
-  coords1 <- coords1[coords1$ID %in% coords2$ID, ]  # Subset the coordinates
+  spemap <- coords1[coords1$ID %in% coords2$ID, ]  # Extract not target from full patch
+  #eggmap <- coords1[coords1$ID %in% coords2$ID, ]  # Extract target from full patch
+  
   
   # Repopulate the grid with the coordinates
-  for (i in 1:nrow(coords1)) {
-    x_idx <- coords1[i, "X"]
-    y_idx <- coords1[i, "Y"]
+  for (i in 1:nrow(spemap)) {
+    x_idx <- spemap[i, "X"]
+    y_idx <- spemap[i, "Y"]
     grid[x_idx, y_idx] <- grid[x_idx, y_idx] + 1
   }
   
-  n_finecells_colony <- numeric(nrow(coords1)) # all zero initially
+  # for (i in 1:nrow(eggmap)) {
+  #   x_idx <- eggmap[i, "X"]  # eggmap X
+  #   y_idx <- eggmap[i, "Y"]  # eggmap Y
+  #   grid_egg[x_idx, y_idx] <- grid_egg[x_idx, y_idx] + 1  # increment egg map
+  # }
+  
+  n_finecells_colony <- numeric(nrow(spemap)) # all zero initially
+  #n_finecells_colony_egg <- numeric(nrow(eggmap))  # all zero initially
+  
   
   # Add colony borders using individual colony sizes
   # Prepare grid points only once to improve efficiency
   grid_points <- expand.grid(x = seq(1, nrow(grid), by = 1), y = seq(1, ncol(grid), by = 1))
   
-  for (i in 1:nrow(coords1)) {
+  for (i in 1:nrow(spemap)) {
     fecun_zone = 0.7 # fraction of area
-    colony_diam <- coords1$colony_diam[i] # keep original diameter
+    colony_diam <- spemap$colony_diam[i] # keep original diameter
     if (is.na(colony_diam)) next # skip if colony_diam is NA
     colony_diam_meters <- (colony_diam / 100) * sqrt(fecun_zone) # apply sqrt(0.7) to radius. Sqt adjusts the diameter properly.
     buffer_radius <- (colony_diam_meters / 2) / resolution # final radius
-    
-    x_idx <- coords1[i, "X"]
-    y_idx <- coords1[i, "Y"]
-    
+    x_idx <- spemap[i, "X"]
+    y_idx <- spemap[i, "Y"]
     # Calculate distances from the current colony center to all grid points
     distances <- sqrt((grid_points$x - x_idx)^2 + (grid_points$y - y_idx)^2)
-    
     # Identify grid points within the buffer radius
     points_in_buffer <- distances < buffer_radius
-    
     n_finecells_colony[i] <- sum(points_in_buffer) #count fine cells
-    
     # Mark these points in the grid
     #grid[grid_points$x[points_in_buffer], grid_points$y[points_in_buffer]] <- 1
     grid[grid_points$x[points_in_buffer], grid_points$y[points_in_buffer]] <-
       grid[grid_points$x[points_in_buffer], grid_points$y[points_in_buffer]] + 1  #allow overlapping points to sum
   }
   
+  # for (i in 1:nrow(eggmap)) {
+  #   fecun_zone = 0.7  # fraction of area
+  #   colony_diam <- eggmap$colony_diam[i]  # diameter from eggmap
+  #   if (is.na(colony_diam)) next  # skip if colony_diam is NA
+  #   colony_diam_meters <- (colony_diam / 100) * sqrt(fecun_zone)  # scaled diameter
+  #   buffer_radius <- (colony_diam_meters / 2) / resolution  # final radius
+  #   x_idx <- eggmap[i, "X"]
+  #   y_idx <- eggmap[i, "Y"]
+  #   distances <- sqrt((grid_points$x - x_idx)^2 + (grid_points$y - y_idx)^2)
+  #   points_in_buffer <- distances < buffer_radius
+  #   n_finecells_colony_egg[i] <- sum(points_in_buffer)
+  #   grid_egg[grid_points$x[points_in_buffer], grid_points$y[points_in_buffer]] <- 
+  #     grid_egg[grid_points$x[points_in_buffer], grid_points$y[points_in_buffer]] + 1  # allow overlap
+  # }
+  
   message("Fine-grid cells for each colony:")
   print(data.frame(
-    ID = coords1$ID,
-    Diam_cm = coords1$colony_diam,
+    ID = spemap$ID,
+    Diam_cm = spemap$colony_diam,
     FineCells = n_finecells_colony,
-    Actual = pi * (coords1$colony_diam / 2)^2  * 0.7
+    Actual = pi * (spemap$colony_diam / 2)^2  * 0.7
   ))
   
   # Convert the fine grid to a coarser resolution
@@ -404,7 +305,9 @@ myfun1 <- function(full_patch, subset_patch, resolution) {
   coarse_dim_y <- floor(ncol(grid) / res_back)
   
   # Initialize the coarse grid
-  grid_coarse <- matrix(0, nrow = coarse_dim_x, ncol = coarse_dim_y)
+  grid_coarse_sperm <- matrix(0, nrow = coarse_dim_x, ncol = coarse_dim_y)
+  #grid_coarse_egg <- matrix(0, nrow = coarse_dim_x, ncol = coarse_dim_y)  # initialise coarse egg grid
+  
   
   # Aggregate the fine grid into the coarse grid
   for (i in 1:coarse_dim_x) {
@@ -418,11 +321,21 @@ myfun1 <- function(full_patch, subset_patch, resolution) {
       block_sum2 = block_sum/(1/resolution^2) * 100 * 100  #this should get the proportion of the total area and convert to cm (100 x 100 = 10000)
       
       # Assign the aggregated value to the coarse grid
-      grid_coarse[i, j] <- block_sum2
+      grid_coarse_sperm[i, j] <- block_sum2
     }
   }
   
-  return(grid_coarse)
+  # for (i in 1:coarse_dim_x) {
+  #   for (j in 1:coarse_dim_y) {
+  #     x_indices <- ((i - 1) * res_back + 1):(i * res_back)
+  #     y_indices <- ((j - 1) * res_back + 1):(j * res_back)
+  #     block_sum <- sum(grid_egg[x_indices, y_indices])  
+  #     block_sum2 = block_sum/(1/resolution^2) * 100 * 100  # convert to cm² scale
+  #     grid_coarse_egg[i, j] <- block_sum2
+  #   }
+  # }
+  return(grid_coarse_sperm)
+  #return(list(grid_coarse_sperm = grid_coarse_sperm, grid_coarse_egg = grid_coarse_egg))  # return both grids
 }
 
 
@@ -450,15 +363,22 @@ dim(grid_coarse)
 
 
 
-# saved maps
-#save_path <- file.path("./Rdata", paste0("2023palau_coarse_grid_", ID2, ".RData"))
-#save(grid_coarse, file.path("./Rdata", paste0("2023palau_coarse_grid_", ID2, ".RData")))
-#save(grid_coarse, file = file.path("./Rdata", paste0("2023palau_coarse_grid_", ID2, ".RData")))
+# saved maps --------------------------------------------------------------
 
-save(grid_coarse, file = file.path("C:/Users/gerar/OneDrive/1_Work/4_Writing/1_Allee_effects_project/coral_fert_model/Rdata", 
-                                   "2023palau_coarse_grid_xc19.RData"))
+save(grid_coarse, file = file.path("./Rdata", paste0("2023palau_coarse_grid_", ID2, ".RData")))
+
+# save(grid_coarse, file = file.path("C:/Users/gerar/OneDrive/1_Work/4_Writing/1_Allee_effects_project/coral_fert_model/Rdata", 
+#                                    "2023palau_coarse_grid_xc19.RData"))
+
 #save(grid_coarse, file = file.path("./Rdata", "2023palau_coarse_grid_rand_centres.RData"))  #grid_coarse
 
+#spemap
+# save(grid_coarse, file = file.path("C:/Users/gerar/OneDrive/1_Work/4_Writing/1_Allee_effects_project/coral_fert_model/Rdata", 
+#                                    "2023palau_coarse_grid_centre.RData")) #this is what you load into the config file as spemap
+
+
+
+# bind eggmaps to list ----------------------------------------------------
 
 load("./Rdata/2023palau_coarse_grid.RData") # grid_coarse
 load("./Rdata/2023palau_coarse_grid_centre.RData") # grid_coarse
@@ -475,7 +395,7 @@ xc10 = grid_coarse
 load("C:/Users/gerar/OneDrive/1_Work/4_Writing/1_Allee_effects_project/coral_fert_model/Rdata/2023palau_coarse_grid_xc19.RData") # grid_coarse
 xc19 = grid_coarse 
 rand_center = list('xc13' = xc13, 'xc5' = xc5, 'xc10' = xc10,'xc19' = xc19)
-# save(rand_center, file = file.path("C:/Users/gerar/OneDrive/1_Work/4_Writing/1_Allee_effects_project/coral_fert_model/Rdata", 
+# save(rand_center, file = file.path("C:/Users/gerar/OneDrive/1_Work/4_Writing/1_Allee_effects_project/coral_fert_model/Rdata",
 #                                    "2023palau_rand_center_list.RData"))
 load("C:/Users/gerar/OneDrive/1_Work/4_Writing/1_Allee_effects_project/coral_fert_model/Rdata/2023palau_rand_center_list.RData") # grid_coarse
 
