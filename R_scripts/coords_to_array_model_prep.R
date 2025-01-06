@@ -1,13 +1,17 @@
+#This script applies the corrected GPS coordinates from the metadata (gneetics) onto a fine grid, rotates it, and then applys a perimeter
+# to the centre and infils each overlapping cell. Cells (should overlap if two colonies fall in the same cell since in reality no 
+#colonies overlapped). Everything is then converted back to a 1 metre grid. The output is fecund cm^2 at present. 
+
 
 ## Todo
 
-#BROKEN ATM. IN THE PROCESSES OF ADDING IN COORDS (AND COL SIZES) FROM META (CLEANED LA T LON)  DATA RATHER THAN GPX. THEN INDIVIDUAL COL SIZES 
+#Note: discretisation seems to increase fecund cm^2 above actual by a fair bit
+
 #NEEDS TO BE ADDED
 
 # - align better with flow direction. Based on releases needs to preference spoke 5. About 115 -120 deg
 # - adjust flow speed. See marrote 10-12th for flow speed. Need to match with spawning time. Containers are 0.21m/s
 #adjust dispersion constant based on dye
-# - adjust colony size for each colony  (added to metadata now).
 # - add uneven spawning times
 # - there seems to be spoke 1 colonies, these may need to be added to centre patch
 
@@ -27,7 +31,7 @@ library(dplyr)
 
 
 # inputs ------------------------------------------------------------------
-resolution <- 0.1  #grid resolution
+resolution <- 0.1  #grid resolution (only works for 0.01 and 0.1
 #colony_diam <- 44  #in cm
 
 
@@ -90,6 +94,7 @@ for (i in 1:nrow(coords_idx)) {
   grid[coords_idx[i, "X"], coords_idx[i, "Y"]] <- grid[coords_idx[i, "X"], coords_idx[i, "Y"]] + 1
 }
 grid
+#View(grid)
 
 plot(coords_idx$X, coords_idx$Y, main = " Points Distribution", xlab = "X", ylab = "Y", pch = 19)
 text(coords_idx$X, coords_idx$Y, labels = coords_idx$ID, pos = 3, cex = 0.7)
@@ -165,15 +170,19 @@ spokes <- coords_rotated %>% dplyr::filter(., ID %in% all_spokes)
 centre <- coords_rotated %>% dplyr::filter(!(ID %in% all_spokes))
 all_colonies = coords_rotated
 
-# single colony
-ID2 = "c19"
-target <- coords_rotated %>% dplyr::filter(., ID == ID2)
+# to map a single colony
+#ID2 = "c19"
+#target <- coords_rotated %>% dplyr::filter(., ID == ID2)
 #rand_center = list('xc13' = xc13, 'xc5' = xc5, 'xc10' = xc10,'xc19' = xc19)
 
 
-## multiple colonies
+## to map all other or multiple colonies
 # centres <- c("0089", "0093", "0098", "0101")  #manual random test
-#target <- coords_rotated %>% dplyr::filter(., ID %in% all_colonies$ID)
+target <- coords_rotated %>% dplyr::filter(., ID %in% all_colonies$ID)
+
+
+target$fecund_area = pi * (target$colony_diam / 2)^2 * 0.7
+sum(target$fecund_area)
 
 ## selected subset function
 # myfun1 <- function(full_patch, subset_patch, colony_diam, resolution) {
@@ -303,24 +312,42 @@ target <- coords_rotated %>% dplyr::filter(., ID == ID2)
 #   return(grid_coarse)
 # }
 
+
 myfun1 <- function(full_patch, subset_patch, resolution) {
   coords1 <- full_patch
   coords2 <- subset_patch
   
-  # Apply margin to avoid boundaries
-  coords1$X <- coords1$X 
-  coords1$Y <- coords1$Y
   
   # Initialize the grid based on the maximum coordinates
-  offset = 20
-  grid_dims_x <- 10^ceiling(log10(max(coords1$X))) + offset   #creates some room for offset below
-  grid_dims_y <- 10^ceiling(log10(max(coords1$Y))) * 0.8
+  offset_m <- 2 # desired physical offset, e.g. 2 m
+  offset <- ceiling(offset_m / resolution) # convert metres to number of fine-grid cells
+  grid_dims_x <- 10^ceiling(log10(max(coords1$X))) + offset
+  grid_dims_y <- (10^ceiling(log10(max(coords1$Y))) + offset) * 0.8  #0.8 makes grid a bit thinner
   grid <- array(0, dim = c(grid_dims_x, grid_dims_y))
   dim(grid)
-  
   # Center the coordinates within the grid
   coords1$Y <- round((dim(grid)[2] / 2 - max(coords1$Y) / 2) + coords1$Y, 0)  # Center Y
   coords1$X <- coords1$X + (dim(grid)[1] - max(coords1$X) - 2) - offset # Adjust X
+  
+  # offset_m <- 2 # 2-metre offset
+  # 
+  # # 1. Define a real bounding box with offset in metres
+  # x_min <- min(coords1$X) - offset_m
+  # x_max <- max(coords1$X) + offset_m
+  # y_min <- min(coords1$Y) - offset_m
+  # y_max <- max(coords1$Y) + offset_m
+  # 
+  # # 2. Convert that bounding box to integer grid dimensions
+  # grid_dims_x <- (x_max - x_min) / resolution
+  # grid_dims_y <- (y_max - y_min) / resolution
+  # grid <- array(0, dim = c(ceiling(grid_dims_x), ceiling(grid_dims_y)))
+  # 
+  # # 3. Shift your colony coordinates so that x_min/y_min becomes (1,1)
+  # coords1$X <- coords1$X - x_min
+  # coords1$Y <- coords1$Y - y_min
+  
+  
+  
   coords1 <- coords1[coords1$ID %in% coords2$ID, ]  # Subset the coordinates
   
   # Repopulate the grid with the coordinates
@@ -330,17 +357,18 @@ myfun1 <- function(full_patch, subset_patch, resolution) {
     grid[x_idx, y_idx] <- grid[x_idx, y_idx] + 1
   }
   
+  n_finecells_colony <- numeric(nrow(coords1)) # all zero initially
+  
   # Add colony borders using individual colony sizes
   # Prepare grid points only once to improve efficiency
   grid_points <- expand.grid(x = seq(1, nrow(grid), by = 1), y = seq(1, ncol(grid), by = 1))
   
   for (i in 1:nrow(coords1)) {
-    fecun_zone = 0.7
-    colony_diam <- coords1$colony_diam[i] *  fecun_zone # Use colony_diam from coords1
-    if (is.na(colony_diam)) next  # Skip if colony_diam is NA
-    
-    colony_diam_meters <- colony_diam / 100  # Convert cm to meters
-    buffer_radius <- (colony_diam_meters / 2) / resolution  # Calculate buffer radius
+    fecun_zone = 0.7 # fraction of area
+    colony_diam <- coords1$colony_diam[i] # keep original diameter
+    if (is.na(colony_diam)) next # skip if colony_diam is NA
+    colony_diam_meters <- (colony_diam / 100) * sqrt(fecun_zone) # apply sqrt(0.7) to radius. Sqt adjusts the diameter properly.
+    buffer_radius <- (colony_diam_meters / 2) / resolution # final radius
     
     x_idx <- coords1[i, "X"]
     y_idx <- coords1[i, "Y"]
@@ -351,13 +379,25 @@ myfun1 <- function(full_patch, subset_patch, resolution) {
     # Identify grid points within the buffer radius
     points_in_buffer <- distances < buffer_radius
     
+    n_finecells_colony[i] <- sum(points_in_buffer) #count fine cells
+    
     # Mark these points in the grid
-    grid[grid_points$x[points_in_buffer], grid_points$y[points_in_buffer]] <- 1
+    #grid[grid_points$x[points_in_buffer], grid_points$y[points_in_buffer]] <- 1
+    grid[grid_points$x[points_in_buffer], grid_points$y[points_in_buffer]] <-
+      grid[grid_points$x[points_in_buffer], grid_points$y[points_in_buffer]] + 1  #allow overlapping points to sum
   }
+  
+  message("Fine-grid cells for each colony:")
+  print(data.frame(
+    ID = coords1$ID,
+    Diam_cm = coords1$colony_diam,
+    FineCells = n_finecells_colony,
+    Actual = pi * (coords1$colony_diam / 2)^2  * 0.7
+  ))
   
   # Convert the fine grid to a coarser resolution
   # Define the block size for aggregation
-  res_back <- 1 / resolution  # Assuming you want to aggregate back to 1m resolution
+  res_back <- 1 / resolution  # Aggregate back to 1m resolution
   
   # Calculate new grid dimensions
   coarse_dim_x <- floor(nrow(grid) / res_back)
@@ -375,7 +415,7 @@ myfun1 <- function(full_patch, subset_patch, resolution) {
       
       # Sum the values in the fine grid block
       block_sum <- sum(grid[x_indices, y_indices])  
-      block_sum2 = block_sum/(1/resolution^2) * 10000  #this should get the proportion of the total area and convert to cm (100 x 100 = 10000)
+      block_sum2 = block_sum/(1/resolution^2) * 100 * 100  #this should get the proportion of the total area and convert to cm (100 x 100 = 10000)
       
       # Assign the aggregated value to the coarse grid
       grid_coarse[i, j] <- block_sum2
@@ -398,9 +438,17 @@ levelplot(t(apply(grid_coarse, 2, rev)),
   col.regions = coul, xlab = "Transverse",
   ylab = "Longitudinal", main = "Conc. (cells/m^3)"
 )
+# checking
 
-positive_values <- grid_coarse[grid_coarse > 0]
-hist(positive_values)
+sum(grid_coarse)
+sum(grid_coarse) - sum(target$fecund_area)  #should be zero
+target
+#View(grid_coarse)
+(which_cells <- which(grid_coarse > 1, arr.ind = TRUE)) # get row & column of colonies
+grid_coarse[which_cells] # check actual values
+dim(grid_coarse)
+
+
 
 # saved maps
 #save_path <- file.path("./Rdata", paste0("2023palau_coarse_grid_", ID2, ".RData"))
