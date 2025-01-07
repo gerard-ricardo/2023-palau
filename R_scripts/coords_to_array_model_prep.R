@@ -180,7 +180,7 @@ all_colonies = coords_rotated
 ## to map a single colony
 ID2 = "c19"
 target <- coords_rotated %>% dplyr::filter(., ID == ID2)
-#'c13' 'c5' 'c10' 'c19'   #these are the random centre
+#    'c13' 'c5' 'c10' 'c19'   #these are the random centre
 
 
 ## to map all other or multiple colonies
@@ -365,10 +365,10 @@ dim(grid_coarse)
 
 # saved maps --------------------------------------------------------------
 
-save(grid_coarse, file = file.path("./Rdata", paste0("2023palau_coarse_grid_", ID2, ".RData")))
-
-# save(grid_coarse, file = file.path("C:/Users/gerar/OneDrive/1_Work/4_Writing/1_Allee_effects_project/coral_fert_model/Rdata", 
-#                                    "2023palau_coarse_grid_xc19.RData"))
+#target individuals
+ID2
+save(grid_coarse, file = file.path("C:/Users/gerar/OneDrive/1_Work/4_Writing/1_Allee_effects_project/coral_fert_model/Rdata",
+                                   "2023palau_coarse_grid_xc19.RData"))
 
 #save(grid_coarse, file = file.path("./Rdata", "2023palau_coarse_grid_rand_centres.RData"))  #grid_coarse
 
@@ -388,16 +388,20 @@ load("./Rdata/2023palau_coarse_grid_rand_centres.RData") # grid_coarse
 #random_centre
 load("C:/Users/gerar/OneDrive/1_Work/4_Writing/1_Allee_effects_project/coral_fert_model/Rdata/2023palau_coarse_grid_xc13.RData") # grid_coarse
 xc13 = grid_coarse 
+dim(xc13)
 load("C:/Users/gerar/OneDrive/1_Work/4_Writing/1_Allee_effects_project/coral_fert_model/Rdata/2023palau_coarse_grid_xc5.RData") # grid_coarse
 xc5 = grid_coarse 
+dim(xc5)
 load("C:/Users/gerar/OneDrive/1_Work/4_Writing/1_Allee_effects_project/coral_fert_model/Rdata/2023palau_coarse_grid_xc10.RData") # grid_coarse
 xc10 = grid_coarse 
+dim(xc10)
 load("C:/Users/gerar/OneDrive/1_Work/4_Writing/1_Allee_effects_project/coral_fert_model/Rdata/2023palau_coarse_grid_xc19.RData") # grid_coarse
 xc19 = grid_coarse 
+dim(xc19)
 rand_center = list('xc13' = xc13, 'xc5' = xc5, 'xc10' = xc10,'xc19' = xc19)
 # save(rand_center, file = file.path("C:/Users/gerar/OneDrive/1_Work/4_Writing/1_Allee_effects_project/coral_fert_model/Rdata",
 #                                    "2023palau_rand_center_list.RData"))
-load("C:/Users/gerar/OneDrive/1_Work/4_Writing/1_Allee_effects_project/coral_fert_model/Rdata/2023palau_rand_center_list.RData") # grid_coarse
+load("C:/Users/gerar/OneDrive/1_Work/4_Writing/1_Allee_effects_project/coral_fert_model/Rdata/2023palau_rand_center_list.RData") # rand_center
 
 
 #spke2
