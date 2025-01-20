@@ -30,7 +30,7 @@ source("https://raw.githubusercontent.com/gerard-ricardo/data/master/theme_sleek
 
 
 # Import cervus out data and prep-----------------------------------------------------------
-(data1 <- read.csv(file = file.path("C:/Users/gerar/OneDrive/1_Work/4_Writing/1_Allee_effects_project/4 Palau genetics mixing/Cervus", "parentage_out1.csv")))
+(data1 <- read.csv(file = file.path("C:/Users/gerar/OneDrive/1_Work/4_Writing/1_Palau genetics mixing/Cervus", "parentage_out1.csv")))
 data1$Mother.ID <- sub("_5", "_05", data1$Mother.ID)
 data1$Candidate.father.ID <- sub("_5", "_05", data1$Candidate.father.ID)
 str(data1) # check data type is correc
@@ -89,8 +89,21 @@ angle_counts_binned <- as.data.frame(table(join_df2$angle_binned)) # Create a ta
 colnames(angle_counts_binned) <- c("angle_binned", "count") # Rename columns for clarity
 angle_counts_binned$angle_binned <- as.numeric(as.character(angle_counts_binned$angle_binned)) # Convert the binned angles to numeric for plotting
 # to true north
-polar.plot(lengths = angle_counts_binned$count, polar.pos = angle_counts_binned$angle_binned, radial.lim = c(0, max(angle_counts_binned$count)), 
-           start = 90, lwd = 3, line.col = 4, clockwise = T) # Plot using polar coordinates with binned angles
+(polar_plot = polar.plot(lengths = angle_counts_binned$count, polar.pos = angle_counts_binned$angle_binned, radial.lim = c(0, max(angle_counts_binned$count)), 
+           start = 90, lwd = 3, line.col = 4, clockwise = T)) # Plot using polar coordinates with binned angles
+#prepare for panelling
+create_polar_plot <- function() {
+  par(mar = c(2, 2, 2, 2))  # Set margins
+  polar.plot(
+    lengths = angle_counts_binned$count,
+    polar.pos = angle_counts_binned$angle_binned,
+    radial.lim = c(0, max(angle_counts_binned$count)),
+    start = 90, 
+    lwd = 3, 
+    line.col = 4, 
+    clockwise = TRUE
+  )
+}
 # to water flow (currently to radial line 5 )
 polar.plot(lengths = angle_counts_binned$count, polar.pos = angle_counts_binned$angle_binned, radial.lim = c(0, max(angle_counts_binned$count)), start = 236.5, lwd = 3, line.col = 4) # Plot using polar coordinates with binned angles
 
@@ -130,7 +143,7 @@ cols <- c("Unweighted" = "#A2CFE3",  # pastel blue
           "Weighted" = "#E3A2A8")    # pastel red
 
 # Overlay weighted and unweighted density plots with matching error bar colours
-p1 <- ggplot(join_df2, aes(x = dist_m)) +
+pairwise_dist_plot <- ggplot(join_df2, aes(x = dist_m)) +
   geom_density(aes(fill = "Unweighted", color = "Unweighted"), alpha = 0.3) + # Unweighted density
   geom_density(aes(weight = normalised_weight, fill = "Weighted", color = "Weighted"), alpha = 0.3) + # Weighted density
   geom_errorbarh(aes(y = 0, xmin = lower_66, xmax = upper_66, color = "Unweighted"), 
@@ -158,7 +171,7 @@ p1 <- ggplot(join_df2, aes(x = dist_m)) +
     panel.spacing.y = unit(-1.5, "lines")
   )
 
-p1
+pairwise_dist_plot
 
 #ggsave(p1, filename = '2023palau_intercol.tiff',  path = "./plots", device = "tiff",  width = 5, height = 5)  #this often works better than pdf
 
@@ -293,7 +306,7 @@ lines_sf <- st_sfc(lapply(1:nrow(join_df2), function(i) {
                       c(join_df2$lon.y[i], join_df2$lat.y[i])))}), crs = 4326)
 lines_sf <- st_sf(geometry = lines_sf, dist_m = join_df2$dist_m)
 
-ggplot() +
+distance_plot = ggplot() +
   geom_sf(data = points_x, color = 'blue', size = 2) +
   geom_sf(data = points_y, color = 'red', size = 2) +
   geom_sf(data = lines_sf, aes(color = dist_m), size = 1, alpha = 0.5) +
@@ -302,13 +315,73 @@ ggplot() +
        color="Distance (m)") +
   theme_minimal()
 
+## add to google map
+# Get the Google map
+lon_range <- range(c(join_df2$lon.x, join_df2$lon.y))
+lat_range <- range(c(join_df2$lat.x, join_df2$lat.y))
+
+# Add small buffer (adjust the 0.0001 value to fit your needs)
+buffer <- 0.0001
+map <- get_googlemap(
+  center = c(
+    lon = mean(lon_range),
+    lat = mean(lat_range)
+  ),
+  zoom = 21,
+  color = "color",
+  maptype = "satellite",
+  # Define bounds explicitly
+  bounds = c(
+    left = min(lon_range) - buffer,
+    bottom = min(lat_range) - buffer,
+    right = max(lon_range) + buffer,
+    top = max(lat_range) + buffer
+  )
+)
+                 
+# Create the base ggmap
+base_map <- ggmap(map)
+# Overlay the distance plot on the map
+# Add jitter to the points data
+# First convert sf objects to data frames for jittering if needed
+points_y_jittered <- st_jitter(points_y, amount = 0.000002) # Adjust amount as needed
+points_x_jittered <- st_jitter(points_x, amount = 0.000002) # Adjust amount as needed
+
+# Overlay the distance plot on the map with jittered points and adjusted alpha
+distance_map_plot <- base_map +
+  geom_sf(data = lines_sf, 
+          aes(color = dist_m), 
+          #size = 30,  
+          linewidth = 1,# Thicker lines
+          inherit.aes = FALSE) + 
+  geom_sf(data = points_y_jittered, 
+          color = 'red', 
+          size = 2.5,           
+          alpha = 0.7,          
+          inherit.aes = FALSE) + 
+  geom_sf(data = points_x, 
+          color = 'blue', 
+          size = 2.5,           
+          alpha = 0.7,          
+          inherit.aes = FALSE) + 
+  scale_color_gradient(
+    low = "#E6E6FA",    # Light purple
+    high = "#4B0082"    # Deep/hot purple
+  ) +
+  labs(title = "Pairwise Crosses Between Sires and Dams", 
+       color = "Distance (m)",
+       x = "Longitude",
+       y = "Latitude") +
+  theme_minimal()
+
+distance_map_plot
 
 
-# map <- get_googlemap(center = c(lon = join_df2$lon.x[8], lat = join_df2$lat.x[8]), zoom = 20, color = "color", maptype = "satellite")
-# ggmap(map) +
-#   #geom_segment(join_df2, mapping = aes(x = lon.x, y = lat.x, xend = lon.y, yend = lat.y), color = "red", size = 1) +
-#   geom_point(data = meta2, aes(x = lon, y = lat), color = "white", size = 3) +
-#   labs(x = "Longitude", y = "Latitude") 
+map <- get_googlemap(center = c(lon = join_df2$lon.x[8], lat = join_df2$lat.x[8]), zoom = 20, color = "color", maptype = "satellite")
+ggmap(map) +
+  #geom_segment(join_df2, mapping = aes(x = lon.x, y = lat.x, xend = lon.y, yend = lat.y), color = "red", size = 1) +
+  geom_point(data = meta2, aes(x = lon, y = lat), color = "white", size = 3) +
+  labs(x = "Longitude", y = "Latitude")
 #ggsave(filename = '2023palau_design.tiff',  path = "./plots", device = "tiff",  width = 5, height = 5)  #this often works better than pdf
 
 
@@ -416,6 +489,7 @@ plot_genotype <- function(genotype) {
 }
 
 plots <- map(unique(join_df2$genotype.x), plot_genotype)
+plots[[1]]
 # to print each plot:
 #walk(plots, print)
 
@@ -466,6 +540,125 @@ p3 <- ggplot(cross_counts, aes(x = distinct_crosses)) +
 p3
 #ggsave(p3, filename = 'dist_crosses.tiff',  path = "./plots", device = "tiff",  width = 6, height = 5)  #make sure to have .tiff on filename
 
+
+
+# breeding units ----------------------------------------------------------
+
+# Load required libraries
+library(tidyverse)
+library(tidygraph)
+library(ggraph)
+library(gridExtra)
+
+# Reorganise the order of mothers
+mother_list <- unique(join_df2$genotype.x)
+mother_list <- sort(mother_list, method = "radix")  # Sort alphanumerically
+mothers_with_c <- grep("^c", mother_list, value = TRUE)  # Mothers starting with 'c'
+other_mothers <- setdiff(mother_list, mothers_with_c)    # Remaining mothers
+sorted_mother_list <- c(mothers_with_c, other_mothers)   # Combine in the desired order
+
+# Create spatial positions for each mother's breeding pairs
+spatial_pairs <- map_df(sorted_mother_list, function(mother) {
+  # Filter data for current mother
+  mother_data <- join_df2 %>%
+    filter(genotype.x == mother) %>%
+    select(genotype.x, genotype.y, lat.x, lon.x, lat.y, lon.y, dist_m, angle_rad) %>%
+    distinct()
+  
+  # Add mother position at origin
+  mother_pos <- tibble(
+    genotype.x = mother,
+    genotype.y = mother,
+    lat.x = mother_data$lat.x[1],  # Mother's latitude
+    lon.x = mother_data$lon.x[1],  # Mother's longitude
+    lat.y = mother_data$lat.x[1],  # Mother's latitude (matches origin)
+    lon.y = mother_data$lon.x[1],  # Mother's longitude (matches origin)
+    dist_m = 0,                    # Distance is 0 for self
+    angle_rad = 0                  # Angle is 0 for self
+  )
+  
+  bind_rows(mother_data, mother_pos)
+})
+
+# Create list of plots, one for each mother
+breeding_plots <- map(sorted_mother_list, function(mother) {
+  # Filter data for current mother
+  current_data <- spatial_pairs %>%
+    filter(genotype.x == mother)
+  
+  # Create edge data
+  edges <- current_data %>%
+    filter(genotype.y != mother) %>%
+    select(from = genotype.x, to = genotype.y, lon.x, lat.x, lon.y, lat.y)
+  
+  # Create node data
+  nodes <- current_data %>%
+    select(name = genotype.y, lon = lon.y, lat = lat.y) %>%
+    distinct()
+  
+  # Add the mother as a node
+  mother_node <- tibble(
+    name = mother,
+    lon = current_data$lon.x[1],
+    lat = current_data$lat.x[1]
+  )
+  nodes <- bind_rows(nodes, mother_node)
+  
+  # Create graph
+  graph <- tbl_graph(
+    nodes = nodes,
+    edges = edges,
+    directed = FALSE
+  )
+  
+  # Create plot
+  sizee = 0.000015  # Make smaller for larger plots
+  p <- ggraph(graph, layout = 'manual', x = nodes$lon, y = nodes$lat) +
+    geom_edge_link(alpha = 0.5, color = "grey50") +
+    geom_node_point(aes(color = name == mother), size = 2) +
+    geom_node_text(aes(label = name), 
+                   vjust = -0.3, 
+                   hjust = 0.5, 
+                   size = 3) +
+    scale_color_manual(values = c("red", "blue")) +
+    coord_fixed(xlim = c(min(nodes$lon) - sizee, max(nodes$lon) + sizee), 
+                ylim = c(min(nodes$lat) - sizee, max(nodes$lat) + sizee)) +
+    theme_void() +
+    ggtitle(paste("Mother:", mother)) +
+    theme(
+      legend.position = "none",
+      plot.title = element_text(hjust = 0.5, size = 9),
+      plot.margin = margin(0, 0, 0, 0, "mm")
+    )
+  
+  return(p)
+})
+
+breeding_plots[[16]]
+
+# Display all plots in a grid
+# For 19 plots, we need a 4x5 layout
+total_plots <- length(breeding_plots)  # 19
+n_cols <- 4
+n_rows <- 5
+
+# Create the grid layout matrix, ensuring left-to-right row-wise order
+layout <- t(matrix(seq_len(n_rows * n_cols), nrow = n_cols, ncol = n_rows))  # Transpose the matrix
+
+# Add the plots to a list and fill remaining slots with NULL
+plot_list <- c(breeding_plots,           # Your 19 plots
+               replicate(n_rows * n_cols - total_plots, NULL))  # Fill remaining slots with NULL
+
+# Create the grid arrangement
+arranged_plots <- grid.arrange(
+  grobs = plot_list,
+  layout_matrix = layout,                # Use the transposed layout
+  heights = unit(rep(0.19, n_rows), "npc"),  # Slightly reduced height per row
+  widths = unit(rep(0.22, n_cols), "npc"),   # Slightly reduced width per column
+  padding = unit(5, "mm")
+  # Minimal padding between plots
+)
+
  
 # network sankey ----------------------------------------------------------
 
@@ -512,7 +705,7 @@ link_colour_scale <- 'd3.scaleOrdinal()
   .range(["#FF5733", "#33FF57", "#3357FF"])' # Replace with your desired colours
 
 # Create the Sankey network
-p4 <- sankeyNetwork(
+sankey_plot <- sankeyNetwork(
   Links = links,
   Nodes = nodes,
   Source = "IDsource",  # Sire (source, left side)
@@ -525,9 +718,57 @@ p4 <- sankeyNetwork(
   LinkGroup = "group",
   iterations = 0 # Disable dynamic node reordering to preserve manual order
 )
-p4
+sankey_plot
 
-ggsave(p4, filename = 'sankey_crosses.png',  path = "./plots", device = "png",  width = 6, height = 5)  #make sure to have .tiff on filename
+#ggsave(p4, filename = 'sankey_crosses.png',  path = "./plots", device = "png",  width = 6, height = 5)  #make sure to have .tiff on filename
+
+
+
+# chord diagram -----------------------------------------------------------
+
+# Load libraries
+library(tidyverse)
+library(circlize)
+
+# Summarise the normalised weights using genotype.x (mother) and genotype.y (father)
+cross_matrix <- join_df2 %>%
+  group_by(genotype.x, genotype.y) %>%
+  summarise(weight = sum(normalised_weight), .groups = "drop") %>%
+  pivot_wider(names_from = genotype.y, values_from = weight, values_fill = 0) %>%
+  column_to_rownames(var = "genotype.x") %>%
+  as.matrix()
+
+# Create a named colour vector for the grid.col argument
+all_sectors <- c(rownames(cross_matrix), colnames(cross_matrix))
+sector_colours <- setNames(rainbow(length(all_sectors)), all_sectors)
+
+# Generate the chord diagram without the default labels
+chordDiagram(
+  cross_matrix, 
+  transparency = 0.5,           # semi-transparent chords
+  annotationTrack = "grid",     # draw only the grid (no default names)
+  preAllocateTracks = list(track.height = 0.1), 
+  grid.col = sector_colours,
+  annotationTrackHeight = c(0.1, 0.02),
+  link.sort = TRUE,  
+  link.decreasing = FALSE
+)
+
+# Add custom labels
+circos.trackPlotRegion(
+  track.index = 1, 
+  panel.fun = function(x, y) {
+    circos.text(
+      CELL_META$xcenter, 
+      CELL_META$ylim[1] + 1, 
+      CELL_META$sector.index, 
+      facing = "clockwise", 
+      niceFacing = TRUE, 
+      cex = 0.6
+    )
+  },
+  bg.border = NA
+)
 
 
 
