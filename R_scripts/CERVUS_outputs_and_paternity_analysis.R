@@ -1,5 +1,8 @@
 
 ## notes,I think the weighting should reflect the fertilisation % data. Not larvae number
+#NOTE THE NAs HERE I THINK INDICAT IMPOSSIBEL DATA. iF sum_count>SUC, IT MEANS THERE ARE MORE PAIRWISE COMBINATION THAN EMBRYOS. nEED OT CROSS CHECK
+# - ONCE THIS IS RESOLVED, I THINK JUST REMOVE STRUCTURAL AND MISSING DATA > ASSESS AGAIN FOR ZERO-INFLATION> AND ANALYSE
+
 # where is c2 and c4?
 # not quite sure about the offset used in the glm yet. 
 # fro the network analysis, maybe try keeping all possible pairwise combination to provide structure, but colour the observ
@@ -222,6 +225,8 @@ left_join(order, data3)
 
 # stats -------------------------------------------------------------------
 
+## 3 types of zero. 1) structureal (impossible), 2) missing data (only subsampled), 3) true zeros if sampled whole container
+
 #poisson - to assess sequeced  larvae
 unique_dams <- unique(data1$id, na.rm = T)   #all dams sampled for fert
 unique_sires <- unique(na.omit(meta2$genotype))
@@ -245,25 +250,54 @@ data4 = data1 %>% dplyr::select(id, suc, prop) %>% na.omit() %>% rename(genotype
 #join_df4 = left_join(join_df3, data4, by = 'genotype.x') %>% mutate(p_s  = count/suc) %>% na.omit() 
 #remove females with no fert
 # Merge all dam-sire pairs with observed crosses without filtering
-join_df4 <- join_df3 %>% left_join(data4, by = 'genotype.x') 
-# Create structural_zero indicator
-join_df4 <- join_df4 %>% mutate(structural_zero = ifelse(suc == 0, 1, 0))
-# Calculate sampling fractions and adjust for sequencing proportion
-join_df4 <- join_df4 %>%
-  mutate(
-    p_s = ifelse(suc > 0, count / suc, NA),            # Proportion of crosses
-    p_sa = ifelse(!is.na(p_s), p_s * prop, NA),        # Adjusted by sequencing proportion
-    p_s2 = ifelse(!is.na(p_sa) & p_sa > 0, p_sa, 1e-10) # Assign small p_sa where p_sa = 0
-  )
-# Assign weights: 1 for structural zeros, p_sa for sampling zeros
-join_df4 <- join_df4 %>%
-  mutate(
-    weight = ifelse(structural_zero == 1, 1, p_sa)
-  )
+join_df4 <- join_df3 %>% left_join(data4, by = 'genotype.x') #here suc is only use as guidance
+#create three types of zeros
+join_df5 = join_df4 %>% group_by(genotype.x) %>% mutate(
+    # Sum of observed positive counts for this dam
+    sum_count = sum(count, na.rm = TRUE),
+    # Logic to classify each row:
+    final_count = case_when(
+      # 1) If suc == 0 => structural zero
+      suc == 0 ~ 0,
+      # 2) If sum(all positive count) == suc and current count=0 => true zero
+      (sum_count == suc & count == 0) ~ 0,
+      # 3) Otherwise if count=0 => set NA (missing)
+      (sum_count < suc & count == 0) ~ NA_real_,
+      # If it's already > 0, keep as is
+      TRUE ~ as.numeric(count)
+    ),
+    zero_type = case_when(suc == 0 ~ "structural_zero", (sum_count == suc & count == 0) ~ "true_zero", (sum_count < suc & count == 0) 
+                          ~ "missing_zero", count > 0 ~ "positive_count", TRUE ~ NA_character_)
+  ) %>% ungroup()
 
-# Final data cleaning (optional: check for any remaining NAs)
+#NOTE THE NAs HERE I THINK INDICAT IMPOSSIBEL DATA. iF sum_count>SUC, IT MEANS THERE ARE MORE PAIRWISE COMBINATION THAN EMBRYOS
+
+#remove missing and structural
 join_df4 <- join_df4 %>%
-  filter(!is.na(weight))
+  filter(!(zero_type %in% c("structural_zero", "missing_zero"))) # Keep only rows that are true_zero or positive_count
+
+
+
+
+
+
+# # Create structural_zero indicator
+# join_df4 <- join_df4 %>% mutate(structural_zero = ifelse(suc == 0, 1, 0)) #think this isnt the best way to assign strucural zeros
+# # Calculate sampling fractions and adjust for sequencing proportion
+# join_df4 <- join_df4 %>%
+#   mutate(
+#     p_s = ifelse(suc > 0, count / suc, NA),            # Proportion of crosses
+#     p_sa = ifelse(!is.na(p_s), p_s * prop, NA),        # Adjusted by sequencing proportion
+#     p_s2 = ifelse(!is.na(p_sa) & p_sa > 0, p_sa, 1e-10) # Assign small p_sa where p_sa = 0
+#   )
+# # Assign weights: 1 for structural zeros, p_sa for sampling zeros
+# join_df4 <- join_df4 %>%
+#   mutate(
+#     weight = ifelse(structural_zero == 1, 1, p_sa)
+#   )
+# # Final data cleaning (optional: check for any remaining NAs)
+# join_df4 <- join_df4 %>%
+#   filter(!is.na(weight))
 
 ## data exploration
 hist(join_df4$dist_m)
@@ -278,17 +312,37 @@ str(join_df4)
 # poisson_model_offset <- glm(count ~ dist_m + angle + offset(log(p_s2)), family = poisson(link = "log"), data = join_df4)
 # summary(poisson_model_offset)
 
+#truncated count (modelling only the magnitude of success once success is possible/observed)
+df_pos_only <- subset(join_df4, count > 0)
+library(countreg)
+
+trunc_pois <- zerotrunc(count ~ scale(dist_m) + scale(ang_rel_ds), # Main effects
+                        data = df_pos_only, # Filtered data
+                        dist = "poisson") # Truncated Poisson
+summary(trunc_pois) # Check the results
+
+trunc_nb <- zerotrunc(count ~ scale(dist_m) + scale(ang_rel_ds), # or include interaction
+                      data = df_pos_only, # your data with zeros removed
+                      dist = "negbin") # truncated negative binomial
+summary(trunc_nb) # Summarise results
+AIC(trunc_pois, trunc_nb)
+
+
 # zero inflated
 library(pscl)
+# Zero-Inflated Poisson (ZIP) model
 zip_model <- zeroinfl(count ~ scale(dist_m) * scale(ang_rel_ds) | scale(dist_m) * scale(ang_rel_ds) , data = join_df4, dist = "poisson")
 summary(zip_model)
+# Zero-Inflated Negative Binomial (ZINB) model
 zinb_model_negbin <- zeroinfl(count ~ scale(dist_m) * scale(ang_rel_ds) | scale(dist_m) * scale(ang_rel_ds), data = join_df4, dist = "negbin")
 summary(zinb_model_negbin)
+# ZIP model with an offset added to the count component
 zip_model_offset_add <- zeroinfl(count ~ scale(dist_m) + scale(ang_rel_ds) + offset(log(p_s2))| scale(dist_m) + scale(ang_rel_ds) , data = join_df4, dist = "poisson")
 summary(zip_model_offset_add)
+# ZIP model with an offset and interaction in predictors
 zip_model_offset_int <- zeroinfl(count ~ scale(dist_m) * scale(ang_rel_ds) + offset(log(p_s2))| scale(dist_m) * scale(ang_rel_ds) , data = join_df4, dist = "poisson")
 summary(zip_model_offset_int)
-AIC(zip_model, zinb_model_negbin, zip_model_offset )
+AIC(zip_model, zinb_model_negbin, zip_model_offset)
 
 # Overdispersion
 E2 <- resid(zip_model_offset_int, type = "pearson")
