@@ -197,10 +197,15 @@ anti_join(meta3, part2,  by = 'genotype' ) %>%   distinct(genotype) %>% nrow()
 (distinct_sire = join_df2 %>% distinct(genotype.y) %>% nrow())   #25 sires
 join_df2 %>% distinct(genotype.x) %>% nrow()   #19 sires
 
-# median dams sired
+# mean dams sired
 join_df2 %>% group_by(genotype.y) %>%                # Group by genotype.y
   summarise(count = n_distinct(genotype.x)) %>% summarise(mean_count = mean(count))  
 #mean dams fert per sire was 1.72
+
+# mean males per dam (small breeding units)
+join_df2 %>% group_by(genotype.x) %>%                # Group by genotype.y
+  summarise(count = n_distinct(genotype.y)) %>% summarise(mean_count = mean(count))  
+#mean dams fert per sire was 2.26
 #
 # how many distinct dams did top 10% sire
 data3 = join_df2 %>% dplyr::select(genotype.y, genotype.x) %>% distinct() 
