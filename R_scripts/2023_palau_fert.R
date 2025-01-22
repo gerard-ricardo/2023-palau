@@ -20,12 +20,12 @@ source("https://raw.githubusercontent.com/gerard-ricardo/data/master/theme_sleek
 
 
 # 1 Import data -----------------------------------------------------------
-# # read.excel <- function(header = TRUE, ...) {
-# #   read.table("clipboard", sep = "\t", header = header, na.strings = c("", "-", "na"), ...)
-# # }
-# # data1 <- read.excel() # read clipboard from excel
-# # save(data1, file = file.path("./Rdata", "2023_palau_fert.RData"))
-load("./Rdata/2023_palau_fert.RData")
+# read.excel <- function(header = TRUE, ...) {
+#   read.table("clipboard", sep = "\t", header = header, na.strings = c("", "-", "na"), ...)
+# }
+# data1 <- read.excel() # read clipboard from excel
+# save(data1, file = file.path("./Rdata", "2023_palau_fert.RData"))
+load("./Rdata/2023_palau_fert.RData") #data1
 
 # 2. Labelling and wrangling -----------------------------------------------
 str(data1) # check data type is correct
@@ -83,6 +83,8 @@ with(data1, mean(prop, na.rm = T))  #unweighted
 
 
 # Modelling ------------------------------------------------------------
+
+## glmm
 # library(lme4)
 # md1 <- glmer(cbind(suc, (tot - suc)) ~ scale(dist) * scale(deg) + (1 | obs), family = binomial, data = data1)
 
@@ -96,58 +98,58 @@ with(data1, mean(prop, na.rm = T))  #unweighted
 # abline(h = 0)
 #devtools::install_version("glmmTMB", version = "1.1.08", repos = "http://cran.us.r-project.org")
 
-str(radial_indiv)
-radial_indiv$cos_deg
-levels(radial_indiv$obs)
-md1 <- glmmTMB(cbind(suc, (tot - suc)) ~ scale(dist) + poly(deg, 2) + (1 | obs), family = "betabinomial", data = radial_indiv)
-summary(md1)
-AIC(md1)
-plot(fitted(md1), resid(md1)) # fitted vs residuals
-abline(h = 0)
-## betabiomial better fitted vs resid
-
-
-## technically angles should be in radians (sin and cos) or dealt with a gam (see below0
-# library(mgcv)
-# library(gamm4)
-# md1 <- gamm4(cbind(suc, tot - suc) ~ s(deg, bs = "cc") + dist + (1 | obs), family = binomial, data = radial_indiv)
-# md1 <- glmmTMB(cbind(suc, tot - suc) ~ 
-#                  s(deg, bs = "cc", k = 4) + 
-#                  s(dist, k = 4) + 
-#                  (1 | obs), 
-#                family = betabinomial(),
-#                data = radial_indiv)
-
-
-# radian
-# angles_deg <- seq(min(radial_indiv$deg), max(radial_indiv$deg), length.out = 100)  # -69.5 to 54.5 degrees
-# angles_rad <- angles_deg * (pi / 180)  # Convert to radians
-# sin_deg <- sin(angles_rad)
-# cos_deg <- cos(angles_rad)
-
-# Generate new_data for predictions
-new_data <- expand.grid(
-  dist = seq(min(radial_indiv$dist), max(radial_indiv$dist), length.out = 100),
-  deg = seq(min(radial_indiv$deg), max(radial_indiv$deg), length.out = 100),
-  # sin_deg = sin_deg,
-  # cos_deg = cos_deg,
-  quality_score = 1
-)
-
-#new_data$deg <- angles_deg
-range(new_data$deg)  # Should match radial_indiv$deg range
-new_data$spoke <- factor("s5") # Example, choose appropriately based on your model structure
-new_data$obs <- factor("001") # Assuming a single observation for prediction purposes
-new_data$predicted <- predict(md1, newdata = new_data, type = "response")
-
-p0 <- ggplot(new_data, aes(x = dist, y = deg)) +
-  geom_raster(aes(fill = predicted)) + # Use geom_raster for a continuous field of colors
-  scale_fill_gradient(low = "#3B9AB2", high = "#F21A00") + # Color gradient for predictions
-  labs(x = "Distance from centre patch (m)", y = "Degrees from downstream", fill = "Fertilisation \n success") +
-  geom_contour(aes(z = predicted), breaks = c(0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9), color = "white") + # Draw contour lines based on 'predicted'
-  theme_minimal()
-p0 <- p0 + geom_hline(yintercept = rad_lines, color = "#E1AF00", lty = 2)
-p0
+# str(radial_indiv)
+# radial_indiv$cos_deg
+# levels(radial_indiv$obs)
+# md1 <- glmmTMB(cbind(suc, (tot - suc)) ~ scale(dist) + poly(deg, 2) + (1 | obs), family = "betabinomial", data = radial_indiv)
+# summary(md1)
+# AIC(md1)
+# plot(fitted(md1), resid(md1)) # fitted vs residuals
+# abline(h = 0)
+# ## betabiomial better fitted vs resid
+# 
+# 
+# ## technically angles should be in radians (sin and cos) or dealt with a gam (see below0
+# # library(mgcv)
+# # library(gamm4)
+# # md1 <- gamm4(cbind(suc, tot - suc) ~ s(deg, bs = "cc") + dist + (1 | obs), family = binomial, data = radial_indiv)
+# # md1 <- glmmTMB(cbind(suc, tot - suc) ~ 
+# #                  s(deg, bs = "cc", k = 4) + 
+# #                  s(dist, k = 4) + 
+# #                  (1 | obs), 
+# #                family = betabinomial(),
+# #                data = radial_indiv)
+# 
+# 
+# # radian
+# # angles_deg <- seq(min(radial_indiv$deg), max(radial_indiv$deg), length.out = 100)  # -69.5 to 54.5 degrees
+# # angles_rad <- angles_deg * (pi / 180)  # Convert to radians
+# # sin_deg <- sin(angles_rad)
+# # cos_deg <- cos(angles_rad)
+# 
+# # Generate new_data for predictions
+# new_data <- expand.grid(
+#   dist = seq(min(radial_indiv$dist), max(radial_indiv$dist), length.out = 100),
+#   deg = seq(min(radial_indiv$deg), max(radial_indiv$deg), length.out = 100),
+#   # sin_deg = sin_deg,
+#   # cos_deg = cos_deg,
+#   quality_score = 1
+# )
+# 
+# #new_data$deg <- angles_deg
+# range(new_data$deg)  # Should match radial_indiv$deg range
+# new_data$spoke <- factor("s5") # Example, choose appropriately based on your model structure
+# new_data$obs <- factor("001") # Assuming a single observation for prediction purposes
+# new_data$predicted <- predict(md1, newdata = new_data, type = "response")
+# 
+# p0 <- ggplot(new_data, aes(x = dist, y = deg)) +
+#   geom_raster(aes(fill = predicted)) + # Use geom_raster for a continuous field of colors
+#   scale_fill_gradient(low = "#3B9AB2", high = "#F21A00") + # Color gradient for predictions
+#   labs(x = "Distance from centre patch (m)", y = "Degrees from downstream", fill = "Fertilisation \n success") +
+#   geom_contour(aes(z = predicted), breaks = c(0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9), color = "white") + # Draw contour lines based on 'predicted'
+#   theme_minimal()
+# p0 <- p0 + geom_hline(yintercept = rad_lines, color = "#E1AF00", lty = 2)
+# p0
 
 
 # GAMM --------------------------------------------------------------------

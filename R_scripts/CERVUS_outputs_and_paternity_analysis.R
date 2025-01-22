@@ -1,7 +1,6 @@
 
 ## notes,I think the weighting should reflect the fertilisation % data. Not larvae number
-#NOTE THE NAs HERE I THINK INDICAT IMPOSSIBEL DATA. iF sum_count>SUC, IT MEANS THERE ARE MORE PAIRWISE COMBINATION THAN EMBRYOS. nEED OT CROSS CHECK
-# - ONCE THIS IS RESOLVED, I THINK JUST REMOVE STRUCTURAL AND MISSING DATA > ASSESS AGAIN FOR ZERO-INFLATION> AND ANALYSE
+#I THINK JUST REMOVE STRUCTURAL AND MISSING DATA > ASSESS AGAIN FOR ZERO-INFLATION> AND ANALYSE. OR Try and add a NULL model for all posibel outcomes
 
 # where is c2 and c4?
 # not quite sure about the offset used in the glm yet. 
@@ -43,6 +42,7 @@ data1$fath_id <- as.factor(as.character(data1$Candidate.father.ID))
 (data1 <- data1[grep("\\*", data1$Trio.confidence), ]) # Filter rows where 'Trio.confidence' contains '*'
 data2 = data1 %>% dplyr::select(., c(offsp_id, moth_id, fath_id))
 data2 = data2 %>% mutate(id = moth_id)  #mother
+data2 %>% group_by(id) %>% summarise(count = n()) #check number of offspring per mother
 
 
 # Import meta data -----------------------------------------------------------
@@ -65,7 +65,7 @@ larvae_count <- table(join_df2$moth_id)
 join_df2$normalised_weight <- 1 / larvae_count[join_df2$moth_id]
 
 # join fert df
-load("./Rdata/fert_data.RData") #data1
+load("./Rdata/2023_palau_fert.RData") #data1
 join_df2 = join_df2 %>% mutate(id = genotype.x)
 join_df2  = left_join(join_df2, data1, by = 'id')
 
@@ -250,7 +250,8 @@ data4 = data1 %>% dplyr::select(id, suc, prop) %>% na.omit() %>% rename(genotype
 #join_df4 = left_join(join_df3, data4, by = 'genotype.x') %>% mutate(p_s  = count/suc) %>% na.omit() 
 #remove females with no fert
 # Merge all dam-sire pairs with observed crosses without filtering
-join_df4 <- join_df3 %>% left_join(data4, by = 'genotype.x') #here suc is only use as guidance
+join_df4 <- join_df3 %>% left_join(data4, by = 'genotype.x') %>% na.omit()#here suc is only use as guidance
+join_df4  %>% group_by(genotype.x) %>% summarise(count = sum(count), suc = first(suc)) %>% mutate(diff = suc - count) %>% data.frame()
 #create three types of zeros
 join_df5 = join_df4 %>% group_by(genotype.x) %>% mutate(
     # Sum of observed positive counts for this dam
@@ -270,13 +271,14 @@ join_df5 = join_df4 %>% group_by(genotype.x) %>% mutate(
                           ~ "missing_zero", count > 0 ~ "positive_count", TRUE ~ NA_character_)
   ) %>% ungroup()
 
-#NOTE THE NAs HERE I THINK INDICAT IMPOSSIBEL DATA. iF sum_count>SUC, IT MEANS THERE ARE MORE PAIRWISE COMBINATION THAN EMBRYOS
+#check no mismatches
+join_df5 %>% filter(is.na(zero_type)) %>% group_by(genotype.x) %>% summarise(count_na = n()) # Count rows per group
+# Keep only rows that are true_zero or positive_count
 
 #remove missing and structural
-join_df4 <- join_df4 %>%
-  filter(!(zero_type %in% c("structural_zero", "missing_zero"))) # Keep only rows that are true_zero or positive_count
+join_df6 <- join_df5 %>% filter(!(zero_type %in% c("structural_zero", "missing_zero"))) # Keep only rows that are true_zero or positive_count
 
-
+#remove structural only
 
 
 
@@ -315,16 +317,11 @@ str(join_df4)
 #truncated count (modelling only the magnitude of success once success is possible/observed)
 df_pos_only <- subset(join_df4, count > 0)
 library(countreg)
-
-trunc_pois <- zerotrunc(count ~ scale(dist_m) + scale(ang_rel_ds), # Main effects
-                        data = df_pos_only, # Filtered data
-                        dist = "poisson") # Truncated Poisson
-summary(trunc_pois) # Check the results
-
-trunc_nb <- zerotrunc(count ~ scale(dist_m) + scale(ang_rel_ds), # or include interaction
-                      data = df_pos_only, # your data with zeros removed
-                      dist = "negbin") # truncated negative binomial
-summary(trunc_nb) # Summarise results
+trunc_pois <- zerotrunc(count ~ scale(dist_m) + scale(ang_rel_ds), data = df_pos_only,  dist = "poisson") 
+summary(trunc_pois)
+# truncated negative binomial
+trunc_nb <- zerotrunc(count ~ scale(dist_m) + scale(ang_rel_ds), data = df_pos_only, dist = "negbin") # truncated negative binomial
+summary(trunc_nb) 
 AIC(trunc_pois, trunc_nb)
 
 
