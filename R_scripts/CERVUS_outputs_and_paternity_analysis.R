@@ -1,6 +1,10 @@
 
 ## notes,I think the weighting should reflect the fertilisation % data. Not larvae number
-#I THINK JUST REMOVE STRUCTURAL AND MISSING DATA > ASSESS AGAIN FOR ZERO-INFLATION> AND ANALYSE. OR Try and add a NULL model for all posibel outcomes
+
+#Check:NOTE THE NAs HERE I THINK INDICAT IMPOSSIBEL DATA. iF sum_count>SUC, IT MEANS THERE ARE MORE PAIRWISE COMBINATION THAN EMBRYOS. nEED OT CROSS CHECK
+
+#I think imputation is working, but may need to filter all pairwise crosses for non fragment combinations
+
 
 # where is c2 and c4?
 # not quite sure about the offset used in the glm yet. 
@@ -275,11 +279,52 @@ join_df5 = join_df4 %>% group_by(genotype.x) %>% mutate(
 join_df5 %>% filter(is.na(zero_type)) %>% group_by(genotype.x) %>% summarise(count_na = n()) # Count rows per group
 # Keep only rows that are true_zero or positive_count
 
-#remove missing and structural
-join_df6 <- join_df5 %>% filter(!(zero_type %in% c("structural_zero", "missing_zero"))) # Keep only rows that are true_zero or positive_count
 
-#remove structural only
+# #remove missing and structural
+# join_df4 <- join_df4 %>%
+#   filter(!(zero_type %in% c("structural_zero", "missing_zero"))) # Keep only rows that are true_zero or positive_count
+# 
 
+
+# imputation --------------------------------------------------------------
+## attempting imputation
+# Ensure `count` is numeric
+join_df5$count <- as.numeric(join_df5$count)
+# Only replace `count` with NA if it's a missing zero
+join_df5$count[join_df5$zero_type == "missing_zero"] <- NA
+# Check that only missing_zero values are NA
+table(join_df5$zero_type, is.na(join_df5$count))
+library(mice)
+meth <- make.method(join_df5)
+
+meth["count"] <- "rf"  # select method for imputatins
+imputed_data <- mice(join_df5, method = meth, m = 5, seed = 123)
+summary(imputed_data)
+# Extract first imputed dataset
+imputed_df <- complete(imputed_data, 1) # First imputed dataset
+# Check if `structural_zero` or `true_zero` values were changed (they should NOT be!)
+table(imputed_df$zero_type, is.na(imputed_df$count))
+# Compare before and after imputation
+table(join_df5$zero_type)
+table(imputed_df$count)
+table(join_df5$zero_type, imputed_df$count)
+library(ggplot2)
+ggplot(imputed_df, aes(x = count, fill = zero_type)) + geom_bar(position = "dodge") +
+  theme_minimal() + labs(title = "Distribution of Imputed vs. Observed Counts",
+       x = "Count (Number of Eggs)",
+       y = "Frequency",
+       fill = "Zero Type")
+
+# Fit negative binomial model on each imputed dataset
+nb_models <- with(imputed_data, glm.nb(count ~ dist_m + ang_rel_ds, data = join_df5))
+summary(nb_models)
+pooled_nb_model <- pool(nb_models)
+summary(pooled_nb_model)
+
+#exclude structural
+model_data <- subset(imputed_df, zero_type != "structural_zero")
+nb_models <- with(model_data, glm.nb(count ~ dist_m + ang_rel_ds, data = model_data))
+summary(nb_models)
 
 
 
