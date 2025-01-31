@@ -15,6 +15,9 @@ library(tidyr)
 library(glmmTMB)
 library(lubridate)
 library(gamm4)
+library(mgcv)
+library(nlme)
+library(dplyr)
 source("https://raw.githubusercontent.com/gerard-ricardo/data/master/theme_sleek2") # set theme in code
 source("https://raw.githubusercontent.com/gerard-ricardo/data/master/theme_sleek3") # set theme in code
 
@@ -47,6 +50,7 @@ data1$quality_score[data1$id == "7_05" & data1$spoke == 7] <- 0.5  # Set quality
 
 
 # 3. Data Exploration ----------------------------------------------------
+hist(data1$suc / data1$tot)
 
 # Wrangling
 centre_indiv <- data1[which(data1$spoke == 'c'),]
@@ -157,9 +161,42 @@ with(data1, mean(prop, na.rm = T))  #unweighted
 #try gamm
 md1 <- gamm(cbind(suc, tot - suc) ~ s(deg, k = 3) + dist,   random = list(obs = ~1), family = binomial,  method = "REML", verbosePQL = F, 
             data = radial_indiv)
+
+md1_int <- gamm(cbind(suc, tot - suc) ~ s(deg, k = 3) * dist,   random = list(obs = ~1), family = binomial,  method = "REML", verbosePQL = F, 
+            data = radial_indiv)  #error
 md1$gam
 coef(md1)
 summary(md1)
+summary(md1$gam)
+
+################
+#k-fold CV
+k <- 5 # Set number of folds
+set.seed(123)  # Ensure reproducibility
+# Create k-fold groups
+radial_indiv$fold <- sample(rep(1:k, length.out = nrow(radial_indiv)))
+# Function to run k-fold CV
+cv_results <- lapply(1:k, function(i) {
+  # Split data into training and testing
+  train_data <- radial_indiv %>% filter(fold != i)
+  test_data  <- radial_indiv %>% filter(fold == i)
+  # Fit the GAMM model on training data
+  model <- gamm(cbind(suc, tot - suc) ~ s(deg, k = 3) + dist, 
+                random = list(obs = ~1), family = binomial, 
+                method = "REML", data = train_data)
+  # Predict on test data
+  pred_probs <- predict(model$gam, newdata = test_data, type = "response")
+  # Compute performance metric (log-likelihood)
+  actual <- test_data$suc / test_data$tot  # Convert to observed proportion
+  log_lik <- sum(actual * log(pred_probs) + (1 - actual) * log(1 - pred_probs), na.rm = TRUE)
+  return(log_lik)
+})
+# Calculate mean log-likelihood across folds
+(mean_log_lik <- mean(unlist(cv_results)))
+
+#no diff between k = 2 and 3, >3 is worse
+################
+
 AIC(md1)  #k = 3 best
 plot(fitted(md1$gam), residuals(md1$gam)) # fitted vs residuals
 abline(h = 0)
@@ -167,7 +204,7 @@ abline(h = 0)
 new_data <- expand.grid(
   dist = seq(min(radial_indiv$dist), max(radial_indiv$dist), length.out = 100),
   deg = seq(min(radial_indiv$deg), max(radial_indiv$deg), length.out = 100),
-  quality_score = 1  # Assuming this is required for consistency, though not used in the model
+  quality_score = 1  
 )
 
 hist(new_data$predicted)

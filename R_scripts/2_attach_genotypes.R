@@ -113,7 +113,7 @@ tt = data_gl_filtered_adult@other$ind.metrics
 data_gl_filtered_adult@pop <- as.factor(data_gl_filtered_adult@other$ind.metrics$genotype2) # Convert genotype2 to factor and assign
 data_gl_filtered_adult
 
-## temporariliy remove missing genotypes
+## temporarily remove missing genotypes
 # Filter out individuals with missing genotype2
 valid_indices <- !is.na(data_gl_filtered_adult@other$ind.metrics$genotype2)
 data_gl_filtered_adult <- data_gl_filtered_adult[valid_indices, ] # Keep only valid rows

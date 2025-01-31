@@ -230,10 +230,12 @@ left_join(order, data3)
 # stats -------------------------------------------------------------------
 
 ## 3 types of zero. 1) structureal (impossible), 2) missing data (only subsampled), 3) true zeros if sampled whole container
+# model successful pos cross vs all unsuccessful crosses
 
 #poisson - to assess sequeced  larvae
 unique_dams <- unique(data1$id, na.rm = T)   #all dams sampled for fert
 unique_sires <- unique(na.omit(meta2$genotype))
+#create all pairwise combinations
 all_pairs <- expand.grid(genotype.x = unique_dams, genotype.y = unique_sires)
 #observed_crosses <- join_df2 %>% dplyr::select(genotype.x, genotype.y) %>% mutate(count = 1)
 observed_crosses_aggregated <- join_df2 %>% group_by(genotype.x, genotype.y) %>% summarise(count = n(), .groups = 'drop') #agreegate multiple pairwise crosses
