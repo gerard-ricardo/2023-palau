@@ -1,10 +1,10 @@
 
 ## notes,I think the weighting should reflect the fertilisation % data. Not larvae number
+#SHOULD REDO WIT DOCENT FILTERING
 
 #Check:NOTE THE NAs HERE I THINK INDICAT IMPOSSIBEL DATA. iF sum_count>SUC, IT MEANS THERE ARE MORE PAIRWISE COMBINATION THAN EMBRYOS. nEED OT CROSS CHECK
 
 #I think imputation is working, but may need to filter all pairwise crosses for non fragment combinations
-
 
 # where is c2 and c4?
 # not quite sure about the offset used in the glm yet. 
