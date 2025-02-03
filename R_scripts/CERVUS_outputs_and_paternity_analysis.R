@@ -132,6 +132,8 @@ quan_66 <- wtd.quantile(join_df2$dist_m, probs = c(0.17, 0.83))
 quan_95 <- wtd.quantile(join_df2$dist_m, probs = c(0.025, 0.975))
 lower_66 <- quan_66[1]; upper_66 <- quan_66[2]
 lower_95 <- quan_95[1]; upper_95 <- quan_95[2]
+unweight_dist = join_df2$dist_m
+#save(unweight_dist, file = file.path("C:/Users/gerar/OneDrive/1_Work/4_Writing/1_Allee_effects_project/2 Allee model and overview/Rdata", "palau_unweight_dist.RData"))
 
 #weighted
 (quan_w <- wtd.quantile(join_df2$dist_m, weights = join_df2$normalised_weight, probs=c(0, .25, .5, .83, 1)))
