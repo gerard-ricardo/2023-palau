@@ -29,6 +29,8 @@ library(networkD3)
 library(circular)
 library(CircStats)
 library(dplyr)
+library(reshape2)
+library(spatstat)
 source("https://raw.githubusercontent.com/gerard-ricardo/data/master/theme_sleek2") # set theme in code
 source("https://raw.githubusercontent.com/gerard-ricardo/data/master/theme_sleek1") # set theme in code
 source("https://raw.githubusercontent.com/gerard-ricardo/data/master/theme_sleek3") # set theme in code
@@ -57,6 +59,32 @@ meta2 <- meta %>% dplyr::select(c(id, lat, lon, genotype ))
 #meta2 <- meta2 %>% mutate(genotype = gsub("_5$", "_05", genotype))
 "X7_05_2" %in% meta2$id
 
+# Compute pairwise distances
+meta2_2 = meta2 %>% na.omit()
+unique_meta <- meta2_2 %>% distinct(genotype, .keep_all=TRUE) # Keep one row per genotype
+pairs_df <- expand.grid(genotype.x=as.character(unique_meta$genotype),genotype.y=as.character(unique_meta$genotype),stringsAsFactors=FALSE) %>% filter(genotype.x < genotype.y) # Unique pairwise combinations
+pairs_df <- pairs_df %>% left_join(unique_meta %>% select(genotype,lat,lon), by=c("genotype.x"="genotype")) %>% rename(lat.x=lat,lon.x=lon) # Add lat/lon for genotype.x
+pairs_df <- pairs_df %>% left_join(unique_meta %>% select(genotype,lat,lon), by=c("genotype.y"="genotype")) %>% rename(lat.y=lat,lon.y=lon) # Add lat/lon for genotype.y
+points_x <- st_as_sf(pairs_df,coords=c("lon.x","lat.x"),crs=4326) # Create sf object for first point
+points_y <- st_as_sf(pairs_df,coords=c("lon.y","lat.y"),crs=4326) # Create sf object for second point
+points_x_proj <- st_transform(points_x,crs=32653) # Project first points to UTM Zone 53N
+points_y_proj <- st_transform(points_y,crs=32653) # Project second points to UTM Zone 53N
+pairs_df$dist <- st_distance(points_x_proj,points_y_proj,by_element=TRUE) # Calculate pairwise distances
+pairs_df$dist_m <- as.numeric(pairs_df$dist) # Convert distance to numeric (meters)
+ggplot(pairs_df, aes(x=dist_m)) + geom_density(fill="blue",alpha=0.3,colour="blue") + labs(x="Distance (m)",y="Probability Density",title="Pairwise Distance Distribution") + theme_minimal() # Plot density
+quantile(pairs_df$dist_m)
+
+meta2_2 <- meta2 %>% na.omit() %>% distinct(genotype, .keep_all=TRUE) 
+meta2_2_sf <- st_as_sf(meta2_2, coords = c("lon", "lat"), crs = 4326) # Convert to sf
+meta2_2_proj <- st_transform(meta2_2_sf, crs = 32653) # Project to UTM
+coords <- st_coordinates(meta2_2_proj)
+win <- owin(xrange = range(coords[,1]), yrange = range(coords[,2])) 
+points_ppp <- ppp(coords[,1], coords[,2], window=win) 
+density_map <- density(points_ppp, sigma = bw.diggle(points_ppp)) # Auto bandwidth
+plot(density_map, main="Spatial Density of Population") 
+points(points_ppp, pch=20, col="red") # Overlay points
+mean_density <- mean(density_map$v) # Compute mean intensity (points per square meter)
+#0.02 points per m^2 but not orientated
 
 # join tables 
 join_df1 <- left_join(data2, meta2, by = 'id')  #add mother lat lon
@@ -64,7 +92,10 @@ join_df1 <- join_df1 %>% dplyr::select(-id) %>% mutate(id = fath_id)  #reset id 
 join_df2 <- left_join(join_df1, meta2, by = 'id')  #add father lat lon
 nrow(join_df2)
 
-#try normalizing to weight larvae
+
+
+#try normalizing to weight larvae. This means that multiple larvae from the same mother are given less weight.
+# It corrects for more larvae being sequenced by chance.
 larvae_count <- table(join_df2$moth_id)
 join_df2$normalised_weight <- 1 / larvae_count[join_df2$moth_id]
 
@@ -174,7 +205,7 @@ pairwise_dist_plot <- ggplot(join_df2, aes(x = dist_m)) +
   scale_y_continuous(name = "Probability density") +
   theme_sleek2() +
   theme(
-    legend.position = c(0.9, 0.9),
+    legend.position = c(0.8, 0.9),
     legend.text = element_text(size = rel(1), colour = "grey20"),
     strip.text.x = element_text(colour = "grey30", size = 8, vjust = -7),
     panel.spacing.y = unit(-1.5, "lines")
@@ -183,6 +214,19 @@ pairwise_dist_plot <- ggplot(join_df2, aes(x = dist_m)) +
 pairwise_dist_plot
 
 #ggsave(p1, filename = '2023palau_intercol.tiff',  path = "./plots", device = "tiff",  width = 5, height = 5)  #this often works better than pdf
+
+##weighting for possible pairwise combinations
+dens_est <- density(pairs_df$dist_m,from=min(pairs_df$dist_m),to=max(pairs_df$dist_m),n=512) # Estimate density of all available pairwise distances
+dens_func <- approxfun(dens_est$x,dens_est$y,rule=2) # Create an interpolation function for density values
+join_df2$weight_distance <- 1/dens_func(join_df2$dist_m) # Assign a weight to each observed distance (inverse of estimated density)
+weighted_quantiles <- wtd.quantile(join_df2$dist_m, weights = join_df2$weight_distance, probs=c(0,0.25,0.5,0.83,1)) # Compute weighted quantiles adjusting for sampling bias
+weighted_quantiles # Display the weighted quantiles
+join_df2_2 = join_df2 %>%  dplyr::select(c(dist_m, weight_distance))
+ggplot(join_df2, aes(x=dist_m)) + geom_density(aes(fill="blue", alpha=0.3,colour="blue", weight = weight_distance))+
+  labs(x="Distance (m)",y="Probability Density",title="Pairwise Distance Distribution") + theme_minimal() # Plot density
+
+join_df2$dist_m
+
 
 
 ## selfing
@@ -527,11 +571,13 @@ p3 = ggmap(map) +
   theme_sleek1()
 #ggsave(filename = '2023palau_gen_zoomin.tiff',  path = "./plots", device = "tiff",  width = 5, height = 5)  #this often works better than pdf
 
+
+
 #colony positions
 map <- get_googlemap(center = c(lon = join_df2$lon.x[8], lat = join_df2$lat.x[8]), zoom = 20, color = "bw", maptype = "satellite")
 (p4_1 = ggmap(map) +
   geom_point(data = meta2, aes(x = lon, y = lat), color = "white", size = 3) +
-  labs(x = "Longitude", y = "Latitude") +
+  labs(title = "All positions", x = "Longitude", y = "Latitude") +
   theme_sleek1())
 
 #monitoring positions
@@ -547,7 +593,7 @@ map <- get_googlemap(center = c(lon = join_df2$lon.x[8], lat = join_df2$lat.x[8]
 (p4_2 = ggmap(map) +
     geom_point(data = meta2, aes(x = lon, y = lat), color = "white", size = 3) +
     geom_point(data = join_df2, aes(x = lon.x, y = lat.x), color = "blue", size = 3)+
-    labs(x = "Longitude", y = "Latitude") +
+    labs(title = "Mother", x = "Longitude", y = "Latitude") +
     theme_sleek1())
 
 #father positions
@@ -555,7 +601,7 @@ map <- get_googlemap(center = c(lon = join_df2$lon.x[8], lat = join_df2$lat.x[8]
 (p4_3 = ggmap(map) +
     geom_point(data = meta2, aes(x = lon, y = lat), color = "white", size = 3) +
     geom_point(data = join_df2, aes(x = lon.y, y = lat.y), color = "red", size = 3)+
-    labs(x = "Longitude", y = "Latitude") +
+    labs(title = "Father", x = "Longitude", y = "Latitude") +
     theme_sleek1())
 
 #selfing positions
@@ -563,7 +609,8 @@ map <- get_googlemap(center = c(lon = join_df2$lon.x[8], lat = join_df2$lat.x[8]
 (p4_4 = ggmap(map) +
     geom_point(data = meta2, aes(x = lon, y = lat), color = "white", size = 3) +
     geom_point(data = join_df2[which(join_df2$dist_m == 0),], aes(x = lon.y, y = lat.y), color = "green", size = 3)+
-    labs(x = "Longitude", y = "Latitude") +
+    labs(title = "Selfing", x = "Longitude", y = "Latitude") +
+    #annotate("text", x = join_df2$lon.x[8], y = join_df2$lat.x[8] + 0.0002, label = "D", size = 6, colour = "white") +
     theme_sleek1())
 
 
@@ -581,10 +628,10 @@ plot_genotype <- function(genotype) {
   map <- get_googlemap(center = c(lon = join_df2$lon.x[8], lat = join_df2$lat.x[8]), zoom = 20, color = "color", maptype = "satellite")
   p = ggmap(map) +
     geom_point(data = meta2, aes(x = lon, y = lat), color = "white", size = 3) +  # all colony positions
-    geom_segment(data = subset_df, aes(x = lon.x, y = lat.x, xend = lon.y, yend = lat.y), color = "red", size = 1) +  # pairwise parental cross
+    geom_segment(data = subset_df, aes(x = lon.x, y = lat.x, xend = lon.y, yend = lat.y), color = "grey", size = 1) +  # pairwise parental cross
     geom_point(data = subset_df, aes(x = lon.y, y = lat.y, color = "Father"), size = 3) +  # father, mapped to "Father"
     geom_point(data = subset_df, aes(x = lon.x, y = lat.x, color = "Mother"), size = 3) +  # mother, mapped to "Mother"
-    scale_color_manual(name = "Parent", values = c("Mother" = "blue", "Father" = "green")) +  # manual colour scale for the legend
+    scale_color_manual(name = "Parent", values = c("Mother" = "blue", "Father" = "red")) +  # manual colour scale for the legend
     labs(x = "Longitude", y = "Latitude") +
     theme_minimal()+
     theme(legend.text = element_text(size = 12), legend.title = element_text(size = 14), axis.title = element_text(size = 14)) + 
@@ -599,8 +646,8 @@ plots[[1]]
 #walk(plots, print)
 
 #save plots
-walk2(plots, unique(join_df2$genotype.x), ~ggsave(path = "./plots/pairwise_crosses", filename = paste0("genotype_", .y, ".jpg"), plot = .x, width = 8, 
-                                                  height = 6))
+walk2(plots, unique(join_df2$genotype.x), ~ggsave(path = "./plots/pairwise_crosses", 
+                      filename = paste0("genotype_", .y, ".jpg"), plot = .x, width = 6, height = 4))
 
 ## Add to animation
 
