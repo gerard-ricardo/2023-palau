@@ -3,7 +3,7 @@
 #SHOULD REDO WIT DOCENT FILTERING
 
 #Check:NOTE THE NAs HERE I THINK INDICAT IMPOSSIBEL DATA. iF sum_count>SUC, IT MEANS THERE ARE MORE PAIRWISE COMBINATION THAN EMBRYOS. nEED OT CROSS CHECK
-
+##no effect of some just because no data points  e.g angle
 #I think imputation is working, but may need to filter all pairwise crosses for non fragment combinations
 
 # where is c2 and c4?
@@ -61,10 +61,16 @@ meta2 <- meta %>% dplyr::select(c(id, lat, lon, genotype ))
 
 # Compute pairwise distances
 meta2_2 = meta2 %>% na.omit()
-unique_meta <- meta2_2 %>% distinct(genotype, .keep_all=TRUE) # Keep one row per genotype
-pairs_df <- expand.grid(genotype.x=as.character(unique_meta$genotype),genotype.y=as.character(unique_meta$genotype),stringsAsFactors=FALSE) %>% filter(genotype.x < genotype.y) # Unique pairwise combinations
-pairs_df <- pairs_df %>% left_join(unique_meta %>% select(genotype,lat,lon), by=c("genotype.x"="genotype")) %>% rename(lat.x=lat,lon.x=lon) # Add lat/lon for genotype.x
-pairs_df <- pairs_df %>% left_join(unique_meta %>% select(genotype,lat,lon), by=c("genotype.y"="genotype")) %>% rename(lat.y=lat,lon.y=lon) # Add lat/lon for genotype.y
+str(meta2_2)
+unique_meta <- meta2_2 %>% distinct(genotype, .keep_all = TRUE) %>% mutate(genotype = as.character(genotype))# Keep one row per genotype
+pairs_df <- expand.grid(genotype.x = as.character(unique_meta$genotype),
+          genotype.y = as.character(unique_meta$genotype), stringsAsFactors=FALSE) %>% 
+          filter(genotype.x < genotype.y) # Unique pairwise combinations
+str(pairs_df)
+pairs_df <- pairs_df %>% left_join(unique_meta %>% dplyr::select(genotype,lat,lon), by=c("genotype.x"="genotype")) %>% 
+          rename(lat.x=lat,lon.x=lon) # Add lat/lon for genotype.x
+pairs_df <- pairs_df %>% left_join(unique_meta %>% dplyr::select(genotype,lat,lon), by=c("genotype.y"="genotype")) %>% 
+          rename(lat.y=lat,lon.y=lon) # Add lat/lon for genotype.y
 points_x <- st_as_sf(pairs_df,coords=c("lon.x","lat.x"),crs=4326) # Create sf object for first point
 points_y <- st_as_sf(pairs_df,coords=c("lon.y","lat.y"),crs=4326) # Create sf object for second point
 points_x_proj <- st_transform(points_x,crs=32653) # Project first points to UTM Zone 53N
@@ -215,7 +221,7 @@ pairwise_dist_plot
 
 #ggsave(p1, filename = '2023palau_intercol.tiff',  path = "./plots", device = "tiff",  width = 5, height = 5)  #this often works better than pdf
 
-##weighting for possible pairwise combinations
+##weighting for possible pairwise combinations (overrepresetns under values)
 dens_est <- density(pairs_df$dist_m,from=min(pairs_df$dist_m),to=max(pairs_df$dist_m),n=512) # Estimate density of all available pairwise distances
 dens_func <- approxfun(dens_est$x,dens_est$y,rule=2) # Create an interpolation function for density values
 join_df2$weight_distance <- 1/dens_func(join_df2$dist_m) # Assign a weight to each observed distance (inverse of estimated density)
@@ -298,6 +304,8 @@ join_df3$dist_m <- as.numeric(st_distance(points_x_proj, points_y_proj, by_eleme
 #join_df3 <- join_df3 %>% mutate(angle = (bearing(cbind(lon.x, lat.x), cbind(lon.y, lat.y)) + 360) %% 360)
 join_df3 <- join_df3 %>% mutate(ang_rel_ds = (bearing(cbind(lon.x, lat.x), cbind(lon.y, lat.y)) - ds_angle) %% 360, 
                                 ang_rel_ds = ifelse(ang_rel_ds > 180, 360 - ang_rel_ds, ang_rel_ds))  # Convert to range (-180, 180), linear scale with 
+join_df3 <- join_df3 %>% mutate(cos_ang = abs(cos(ang_rel_ds * pi / 180)))  # Converts angles into a continuous variable, 0 = perp, 1 = upstream/downstream
+
 data4 = data1 %>% dplyr::select(id, suc, prop) %>% na.omit() %>% rename(genotype.x = id)
 #join_df4 = left_join(join_df3, data4, by = 'genotype.x') %>% mutate(p_s  = count/suc) %>% na.omit() 
 #remove females with no fert
@@ -398,6 +406,7 @@ summary(nb_models)
 hist(join_df4$dist_m)
 plot(join_df4$count~ (join_df4$dist_m))  
 plot(join_df4$count~ (join_df4$ang_rel_ds))  
+plot(join_df4$count~ (join_df4$cos_ang ))
 join_df4 = join_df4[which(as.character(join_df4$genotype.x) != as.character(join_df4$genotype.y)),]  # remove selfing
 str(join_df4)
 # #standard poisson
@@ -409,13 +418,31 @@ str(join_df4)
 
 #truncated count (modelling only the magnitude of success once success is possible/observed)
 df_pos_only <- subset(join_df4, count > 0)
+plot(df_pos_only$count  ~ df_pos_only$dist_m)
+plot(df_pos_only$count  ~ df_pos_only$ang_rel_ds)
+plot(df_pos_only$count  ~ df_pos_only$cos_ang)
+range(df_pos_only$ang_rel_ds)
 library(countreg)
-trunc_pois <- zerotrunc(count ~ scale(dist_m) + scale(ang_rel_ds), data = df_pos_only,  dist = "poisson") 
+trunc_pois <- zerotrunc(count ~ scale(dist_m) + cos_ang, data = df_pos_only,  dist = "poisson") 
 summary(trunc_pois)
 # truncated negative binomial
 trunc_nb <- zerotrunc(count ~ scale(dist_m) + scale(ang_rel_ds), data = df_pos_only, dist = "negbin") # truncated negative binomial
 summary(trunc_nb) 
 AIC(trunc_pois, trunc_nb)
+
+trunc_pois_wei <- zerotrunc(count ~ scale(dist_m) + scale(ang_rel_ds), data = df_pos_only, 
+                        dist = "poisson", weights = suc)
+summary(trunc_pois_wei)
+trunc_nb_wei  <- zerotrunc(count ~ scale(dist_m) + scale(ang_rel_ds), data = df_pos_only, 
+                      dist = "negbin", weights = suc)
+summary(trunc_nb_wei)
+trunc_pois_offset <- zerotrunc(count ~ scale(dist_m) + scale(ang_rel_ds) + offset(log(suc)), 
+                        data = df_pos_only, dist = "poisson")
+summary(trunc_pois_offset)
+trunc_nb_offset <- zerotrunc(count ~ scale(dist_m) + scale(ang_rel_ds) + offset(log(suc)), 
+                      data = df_pos_only, dist = "negbin")
+summary(trunc_nb_offset)
+AIC(trunc_pois_wei, trunc_nb_wei,trunc_pois_offset, trunc_nb_offset )
 
 
 # zero inflated
