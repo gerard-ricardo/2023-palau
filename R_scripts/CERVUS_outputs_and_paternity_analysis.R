@@ -39,9 +39,12 @@ source("https://raw.githubusercontent.com/gerard-ricardo/data/master/theme_sleek
 
 # Import cervus out data and prep-----------------------------------------------------------
 (data1 <- read.csv(file = file.path("C:/Users/gerar/OneDrive/1_Work/4_Writing/1_Palau genetics mixing/Cervus", "parentage_out1.csv")))
+(data1 <- read.csv(file = file.path("C:/Users/gerar/OneDrive/1_Work/4_Writing/1_Palau genetics mixing/Cervus", "summary_out_docent.csv")))
+
 data1$Mother.ID <- sub("_5", "_05", data1$Mother.ID)
 data1$Candidate.father.ID <- sub("_5", "_05", data1$Candidate.father.ID)
 str(data1) # check data type is correc
+View(data1)
 data1$offsp_id <- as.factor(as.character(data1$Offspring.ID))
 data1$moth_id <- as.factor(as.character(data1$Mother.ID))
 data1$fath_id <- as.factor(as.character(data1$Candidate.father.ID))
@@ -426,20 +429,20 @@ library(countreg)
 trunc_pois <- zerotrunc(count ~ scale(dist_m) + cos_ang, data = df_pos_only,  dist = "poisson") 
 summary(trunc_pois)
 # truncated negative binomial
-trunc_nb <- zerotrunc(count ~ scale(dist_m) + scale(ang_rel_ds), data = df_pos_only, dist = "negbin") # truncated negative binomial
+trunc_nb <- zerotrunc(count ~ scale(dist_m) + cos_ang , data = df_pos_only, dist = "negbin") # truncated negative binomial
 summary(trunc_nb) 
 AIC(trunc_pois, trunc_nb)
 
-trunc_pois_wei <- zerotrunc(count ~ scale(dist_m) + scale(ang_rel_ds), data = df_pos_only, 
-                        dist = "poisson", weights = suc)
-summary(trunc_pois_wei)
-trunc_nb_wei  <- zerotrunc(count ~ scale(dist_m) + scale(ang_rel_ds), data = df_pos_only, 
-                      dist = "negbin", weights = suc)
-summary(trunc_nb_wei)
-trunc_pois_offset <- zerotrunc(count ~ scale(dist_m) + scale(ang_rel_ds) + offset(log(suc)), 
+# trunc_pois_wei <- zerotrunc(count ~ scale(dist_m) + scale(ang_rel_ds), data = df_pos_only, 
+#                         dist = "poisson", weights = suc)
+# summary(trunc_pois_wei)
+# trunc_nb_wei  <- zerotrunc(count ~ scale(dist_m) + scale(ang_rel_ds), data = df_pos_only, 
+#                       dist = "negbin", weights = suc)
+# summary(trunc_nb_wei)
+trunc_pois_offset <- zerotrunc(count ~ scale(dist_m) + cos_ang + offset(log(suc)), 
                         data = df_pos_only, dist = "poisson")
 summary(trunc_pois_offset)
-trunc_nb_offset <- zerotrunc(count ~ scale(dist_m) + scale(ang_rel_ds) + offset(log(suc)), 
+trunc_nb_offset <- zerotrunc(count ~ scale(dist_m) + cos_ang + offset(log(suc)), 
                       data = df_pos_only, dist = "negbin")
 summary(trunc_nb_offset)
 AIC(trunc_pois_wei, trunc_nb_wei,trunc_pois_offset, trunc_nb_offset )
@@ -503,7 +506,7 @@ map <- get_googlemap(
     lon = mean(lon_range),
     lat = mean(lat_range)
   ),
-  zoom = 21,
+  zoom = 20,
   color = "color",
   maptype = "satellite",
   # Define bounds explicitly
@@ -565,11 +568,11 @@ ggmap(map) +
 map <- get_googlemap(center = c(lon = join_df2$lon.x[8], lat = join_df2$lat.x[8]), zoom = 20, color = "bw", maptype = "satellite")
 
 p2 = ggmap(map) +
-  geom_segment(data = join_df2, aes(x = lon.x, y = lat.x, xend = lon.y, yend = lat.y), color = "red", size = 1) +  # pairwise parental cross
+  geom_segment(data = join_df2, aes(x = lon.x, y = lat.x, xend = lon.y, yend = lat.y), color = "grey", size = 1) +  # pairwise parental cross
   geom_point(data = meta2, aes(x = lon, y = lat), color = "white", size = 3) +  # all colony positions
   geom_point(data = join_df2, aes(x = lon.x, y = lat.x, color = "Mother"), size = 3) +  # mother, mapped to "Mother"
   geom_point(data = join_df2, aes(x = lon.y, y = lat.y, color = "Father"), size = 3) +  # father, mapped to "Father"
-  scale_color_manual(name = "Parent", values = c("Mother" = "blue", "Father" = "green")) +  # manual colour scale for the legend
+  scale_color_manual(name = "Parent", values = c("Mother" = "blue", "Father" = "red")) +  # manual colour scale for the legend
   labs(x = "Longitude", y = "Latitude") +
   theme_minimal()#+
   #annotate("text", x = 134.4953, y = 7.3136, label = paste('test'), hjust = 1.1, vjust = -0.1, size = 5, color = "blue") # 
@@ -625,9 +628,10 @@ map <- get_googlemap(center = c(lon = join_df2$lon.x[8], lat = join_df2$lat.x[8]
 
 #father positions
 map <- get_googlemap(center = c(lon = join_df2$lon.x[8], lat = join_df2$lat.x[8]), zoom = 20, color = "bw", maptype = "satellite")
+join_df2_sire <- join_df2 %>% distinct(lon.y, lat.y, .keep_all = TRUE)
 (p4_3 = ggmap(map) +
     geom_point(data = meta2, aes(x = lon, y = lat), color = "white", size = 3) +
-    geom_point(data = join_df2, aes(x = lon.y, y = lat.y), color = "red", size = 3)+
+    geom_point(data = join_df2_sire, aes(x = lon.y, y = lat.y), color = "red", size = 3, alpha = 0.5)+
     labs(title = "Father", x = "Longitude", y = "Latitude") +
     theme_sleek1())
 
@@ -685,6 +689,8 @@ gif <- image_animate(images, fps = 0.5)  #
 
 # Save the animated GIF
 image_write(gif, path = "./plots/compiled_maps.gif")
+image_write(gif, path = "./plots/compiled_maps_docent.gif")
+
 
 
 #==========================================================================================================

@@ -122,7 +122,7 @@ data_gl_filtered_adult@pop <- as.factor(data_gl_filtered_adult@other$ind.metrics
 
 
 # Convert GENIND OBJECT all indiv
-#data_genind <- gl2gi(data_gl_filtered)
+data_genind <- gl2gi(data_gl_filtered)
 
 # Convert genind adults only
 data_genind_adult <- gl2gi(data_gl_filtered_adult)

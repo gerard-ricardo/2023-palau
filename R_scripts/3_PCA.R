@@ -4,6 +4,7 @@
 ## notes
 # big ddiference betwen kmena sclustering and dbscan
 #also difference between regualr and dDocent clustering (bugger)
+#cant see any thing special about c7 which was a super sire. Not sure where x26 (2_3_) is on the PCA. 
 
 
 library(dbscan)
@@ -158,6 +159,10 @@ t2 <- ggplot(pca_complete2, aes(x = Axis1, y = Axis2)) +
   )
 t2
 
+#x23 = 1_3, 6_1 (not sure why two here, should be one)
+#x16 = 1_10_1 group , 
+#x8 = 4_3_1 group (most of radial 4)
+
 
 ##dbscan cluster
 # Ensure 'Cluster_dbscan_27.4' (replace with actual column name) exists in pca_complete2
@@ -184,6 +189,9 @@ t2_dbscan <- ggplot(pca_complete2, aes(x = Axis1, y = Axis2)) +
     color = "DBSCAN Cluster", fill = "DBSCAN Cluster", shape = "Stage"
   )
 t2_dbscan
+
+#these are different than kmeans
+#
 
 ###################################################################################################################
 # adult and larvae --------------------------------------------------------
