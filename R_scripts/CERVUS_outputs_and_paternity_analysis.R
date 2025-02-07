@@ -3,8 +3,10 @@
 #SHOULD REDO WIT DOCENT FILTERING
 
 #Check:NOTE THE NAs HERE I THINK INDICAT IMPOSSIBEL DATA. iF sum_count>SUC, IT MEANS THERE ARE MORE PAIRWISE COMBINATION THAN EMBRYOS. nEED OT CROSS CHECK
-##no effect of some just because no data points  e.g angle
+##no effect of some just because no data points  e.g angle - need to check
 #I think imputation is working, but may need to filter all pairwise crosses for non fragment combinations
+#add genetic relatedness between each parent pair inot the glm. 
+
 
 # where is c2 and c4?
 # not quite sure about the offset used in the glm yet. 
@@ -38,13 +40,14 @@ source("https://raw.githubusercontent.com/gerard-ricardo/data/master/theme_sleek
 
 
 # Import cervus out data and prep-----------------------------------------------------------
-(data1 <- read.csv(file = file.path("C:/Users/gerar/OneDrive/1_Work/4_Writing/1_Palau genetics mixing/Cervus", "parentage_out1.csv")))
+#(data1 <- read.csv(file = file.path("C:/Users/gerar/OneDrive/1_Work/4_Writing/1_Palau genetics mixing/Cervus", "parentage_out1.csv")))
+#dDocent
 (data1 <- read.csv(file = file.path("C:/Users/gerar/OneDrive/1_Work/4_Writing/1_Palau genetics mixing/Cervus", "summary_out_docent.csv")))
 
 data1$Mother.ID <- sub("_5", "_05", data1$Mother.ID)
 data1$Candidate.father.ID <- sub("_5", "_05", data1$Candidate.father.ID)
 str(data1) # check data type is correc
-View(data1)
+#View(data1)
 data1$offsp_id <- as.factor(as.character(data1$Offspring.ID))
 data1$moth_id <- as.factor(as.character(data1$Mother.ID))
 data1$fath_id <- as.factor(as.character(data1$Candidate.father.ID))
@@ -447,6 +450,17 @@ trunc_nb_offset <- zerotrunc(count ~ scale(dist_m) + cos_ang + offset(log(suc)),
 summary(trunc_nb_offset)
 AIC(trunc_pois_wei, trunc_nb_wei,trunc_pois_offset, trunc_nb_offset )
 
+
+## try on colonies sire from central patch
+df_pos_only_centre <- df_pos_only[grep('c',df_pos_only$genotype.y),]
+trunc_pois <- zerotrunc(count ~ scale(dist_m) + cos_ang, data = df_pos_only_centre,  dist = "poisson") 
+summary(trunc_pois)
+# truncated negative binomial
+trunc_nb <- zerotrunc(count ~ scale(dist_m) + cos_ang , data = df_pos_only_centre, dist = "negbin") # truncated negative binomial
+summary(trunc_nb) 
+AIC(trunc_pois, trunc_nb)
+plot(df_pos_only_centre$count  ~ df_pos_only_centre$dist_m)
+plot(df_pos_only_centre$count  ~ df_pos_only_centre$cos_ang)
 
 # zero inflated
 library(pscl)

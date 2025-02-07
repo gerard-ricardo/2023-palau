@@ -53,9 +53,6 @@ data1_long <- data1_long %>%
   mutate(allele_multiplied = mapply(repeat_with_separator, allele, counts, sep = ",")) # you can change sep to "_" if you want underscores
 any(data1_long == "", na.rm = TRUE) # This will return TRUE if there are any empty strings in the dataframe
 
-# Display the intermediate result
-print(data1_long)
-
 # Group and summarise the data
 summary_data <- data1_long %>%
   group_by(CloneID, id) %>%
@@ -84,12 +81,10 @@ length(unique(data1_long$CloneID))
 good_loci = result[which(result$star_count < 40),]  #hard filter to keep loci around 2000
 data1_long <- data1_long %>%
   semi_join(good_loci, by = "CloneID")
-length(unique(data1_long$CloneID))  #2621
+length(unique(data1_long$CloneID))  #2621, 955
 data1_long = data1_long %>% select(-c(CloneID , base))
 data1_long <- data1_long %>%
   mutate(code = ifelse(code == "NA", "*", code))
-
-
 
 
 data_wide <- data1_long %>% tidyr::pivot_wider(names_from = LocusID, values_from = code, names_prefix = "X") %>% 

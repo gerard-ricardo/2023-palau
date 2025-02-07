@@ -53,7 +53,7 @@ pca_complete$kmeans_cluster <- as.factor(kmeans_result$cluster)
 # DBSCAN clustering
 # Find the appropriate eps value using kNNdistplot
 kNNdistplot(pca_data, k = 5)  #k-nearest neighbour
-elbow = 9.82 # Place this at the elbow of the line
+elbow = 9.82 # Place this at the elbow of the line  #9.82, #10.25
 abline(h = elbow, col = "red", lty = 2)  
 
 # # Function to perform DBSCAN clustering and plot results
@@ -163,6 +163,10 @@ t2
 #x16 = 1_10_1 group , 
 #x8 = 4_3_1 group (most of radial 4)
 
+#dDocent
+#x9
+#x21
+
 
 ##dbscan cluster
 # Ensure 'Cluster_dbscan_27.4' (replace with actual column name) exists in pca_complete2
@@ -205,6 +209,8 @@ pca <- dudi.pca(pca_data, center = TRUE, scale = FALSE, nf = 2, scannf = FALSE) 
 pca_complete2 <- data.frame(pca$li, pop = data_gl_filtered$pop, id = data_gl_filtered$ind.names, 
                             genotype = data_gl_filtered$other$ind.metrics$genotype,
                             stage = data_gl_filtered$other$ind.metrics$stage) # Combine PCA results with population data
+pca_complete2 %>% dplyr::filter(stage == 'larvae') %>% group_by(genotype) %>% summarise(n = n()) %>% 
+  summarise(mean = mean(n))
 #use for adults
 #pca_complete2 <- data.frame(pca$li) # Combine PCA results with population data
 

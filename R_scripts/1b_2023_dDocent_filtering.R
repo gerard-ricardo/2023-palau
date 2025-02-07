@@ -73,6 +73,10 @@ data_gl_filtered <- gl.filter.callrate(data_gl_filtered, method = "ind",
                                        threshold = 0.5, v = 3)
 #ind = 204    , loci = 16540  
 
+
+# # Recalculate metrics after initial cleaning
+data_gl_filtered <- gl.recalc.metrics(data_gl_filtered, v = 3)
+
 # Step 4: Apply Stricter Filters on Loci -------------------------------------
 
 # 4a. Filter loci with call rate less than 95% (missing in more than 5% of individuals)
@@ -205,25 +209,27 @@ data_gl_filtered <- gl.filter.hwe(
 
 data_gl_filtered <- gl.recalc.metrics(data_gl_filtered, v = 3)
 
-
-
 # Filter for adults
 adults_indices <- which(data_gl_filtered@other$ind.metrics$stage == "adults")
 data_gl_filtered_adult <- data_gl_filtered[adults_indices, ]
 data_gl_filtered_adult@other$ind.metrics$stage <- droplevels(data_gl_filtered_adult@other$ind.metrics$stage)
 data_gl_filtered_adult@ind.names
-  
+# 81 genotypes  
+# Convert genind adults only
+data_genind_adult <- gl2gi(data_gl_filtered_adult)
 
-## BLAST prep
+
+
+# Blast prep --------------------------------------------------------------
 # Check the lengths of TrimmedSequence in @other$loc.metrics
-trimmed_lengths <- nchar(as.character(data_gl_filtered@other$loc.metrics$TrimmedSequence))
-
-# Filter for loci with trimmed sequences > 100 bp
-filtered_loci <- trimmed_lengths > 68
-data_gl_filtered_blast <- data_gl_filtered[filtered_loci, ]
-
-# Check how many loci remain
-print(paste("Number of loci > 68 bp:", sum(filtered_loci)))
-
-gl2fasta(data_gl_filtered_blast, method=1, outpath = './data' , outfile='test.fasta',verbose=3)
-
+# trimmed_lengths <- nchar(as.character(data_gl_filtered@other$loc.metrics$TrimmedSequence))
+# 
+# # Filter for loci with trimmed sequences > 100 bp
+# filtered_loci <- trimmed_lengths > 68
+# data_gl_filtered_blast <- data_gl_filtered[filtered_loci, ]
+# 
+# # Check how many loci remain
+# print(paste("Number of loci > 68 bp:", sum(filtered_loci)))
+# 
+# gl2fasta(data_gl_filtered_blast, method=1, outpath = './data' , outfile='test.fasta',verbose=3)
+# 
