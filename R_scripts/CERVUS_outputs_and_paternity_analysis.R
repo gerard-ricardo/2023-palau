@@ -5,7 +5,8 @@
 #Check:NOTE THE NAs HERE I THINK INDICAT IMPOSSIBEL DATA. iF sum_count>SUC, IT MEANS THERE ARE MORE PAIRWISE COMBINATION THAN EMBRYOS. nEED OT CROSS CHECK
 ##no effect of some just because no data points  e.g angle - need to check
 #I think imputation is working, but may need to filter all pairwise crosses for non fragment combinations
-#add genetic relatedness between each parent pair inot the glm. 
+#add genetic relatedness between each parent pair inot the glm.
+#add colony size
 
 
 # where is c2 and c4?
