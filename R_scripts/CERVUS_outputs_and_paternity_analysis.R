@@ -1,16 +1,23 @@
+## Cervus outputs
 
-## notes,I think the weighting should reflect the fertilisation % data. Not larvae number
-#SHOULD REDO WIT DOCENT FILTERING
-
-#Check:NOTE THE NAs HERE I THINK INDICAT IMPOSSIBEL DATA. iF sum_count>SUC, IT MEANS THERE ARE MORE PAIRWISE COMBINATION THAN EMBRYOS. nEED OT CROSS CHECK
-##no effect of some just because no data points  e.g angle - need to check
-#I think imputation is working, but may need to filter all pairwise crosses for non fragment combinations
+##Proiorites
 #add genetic relatedness between each parent pair inot the glm.
 #add colony size
+#sort out filtering
+
+
+## Notes
+# Conflict between dDocent and standard. Need to resolve
+#Check:Double check sum_count (all larvae) not greater than suc
+#INCLUDING ZEROS
+#Best approach so far is to include zeros, test for zeroinflation, then sipmply. So far, simple model works best
+#I think imputation is working BUTR SEEMS DANGEROUS SO MUCH MISSING DATA, but may need to filter all pairwise crosses for non fragment combinations
+
+#NOT INCLUDING ZEROS
+    #no effect of some just because no data points  e.g angle - need to check
 
 
 # where is c2 and c4?
-# not quite sure about the offset used in the glm yet. 
 # fro the network analysis, maybe try keeping all possible pairwise combination to provide structure, but colour the observ
 
 
@@ -56,7 +63,7 @@ data1$fath_id <- as.factor(as.character(data1$Candidate.father.ID))
 data2 = data1 %>% dplyr::select(., c(offsp_id, moth_id, fath_id))
 data2 = data2 %>% mutate(id = moth_id)  #mother
 data2 %>% group_by(id) %>% summarise(count = n()) #check number of offspring per mother
-
+nrow(data2)  #108 larvae
 
 # Import meta data -----------------------------------------------------------
 load("./Rdata/data_gl.RData")  #data_gl.RData
@@ -288,10 +295,10 @@ left_join(order, data3)
 
 # stats -------------------------------------------------------------------
 
-## 3 types of zero. 1) structureal (impossible), 2) missing data (only subsampled), 3) true zeros if sampled whole container
+## 3 types of zero. 1) structural (impossible), 2) missing data (only subsampled), 3) true zeros if sampled whole container
 # model successful pos cross vs all unsuccessful crosses
 
-#poisson - to assess sequeced  larvae
+## prepare data fro analysis of every pairwise combination as counts. 
 unique_dams <- unique(data1$id, na.rm = T)   #all dams sampled for fert
 unique_sires <- unique(na.omit(meta2$genotype))
 #create all pairwise combinations
@@ -308,46 +315,214 @@ join_df3 <- join_df3[complete.cases(join_df3), ] # make sure import matches NA t
 points_x_proj <- st_as_sf(join_df3, coords = c("lon.x", "lat.x"), crs = 4326) %>% st_transform(crs = 32653)
 points_y_proj <- st_as_sf(join_df3, coords = c("lon.y", "lat.y"), crs = 4326) %>% st_transform(crs = 32653)
 join_df3$dist_m <- as.numeric(st_distance(points_x_proj, points_y_proj, by_element = TRUE))
-#join_df3 <- join_df3 %>% mutate(angle = (bearing(cbind(lon.x, lat.x), cbind(lon.y, lat.y)) + 360) %% 360)
 join_df3 <- join_df3 %>% mutate(ang_rel_ds = (bearing(cbind(lon.x, lat.x), cbind(lon.y, lat.y)) - ds_angle) %% 360, 
-                                ang_rel_ds = ifelse(ang_rel_ds > 180, 360 - ang_rel_ds, ang_rel_ds))  # Convert to range (-180, 180), linear scale with 
+                                ang_rel_ds = ifelse(ang_rel_ds > 180, 360 - ang_rel_ds, ang_rel_ds),
+                                angle = (bearing(cbind(lon.x, lat.x), cbind(lon.y, lat.y)) + 360) %% 360)  # Convert to range (-180, 180), linear scale with 
 join_df3 <- join_df3 %>% mutate(cos_ang = abs(cos(ang_rel_ds * pi / 180)))  # Converts angles into a continuous variable, 0 = perp, 1 = upstream/downstream
 
 data4 = data1 %>% dplyr::select(id, suc, prop) %>% na.omit() %>% rename(genotype.x = id)
 #join_df4 = left_join(join_df3, data4, by = 'genotype.x') %>% mutate(p_s  = count/suc) %>% na.omit() 
 #remove females with no fert
 # Merge all dam-sire pairs with observed crosses without filtering
-join_df4 <- join_df3 %>% left_join(data4, by = 'genotype.x') %>% na.omit()#here suc is only use as guidance
+join_df4 <- join_df3 %>% left_join(data4, by = 'genotype.x') %>% na.omit() #here suc is only use as guidance
 join_df4  %>% group_by(genotype.x) %>% summarise(count = sum(count), suc = first(suc)) %>% mutate(diff = suc - count) %>% data.frame()
-#create three types of zeros
+
+
+## data exploration
+hist(join_df4$dist_m)
+plot(join_df4$count~ (join_df4$dist_m))  
+plot(join_df4$count~ (join_df4$ang_rel_ds))  
+plot(join_df4$count ~ (join_df4$cos_ang ))
+join_df4$count
+join_df4 = join_df4[which(as.character(join_df4$genotype.x) != as.character(join_df4$genotype.y)),]  # remove selfing
+str(join_df4)
+# #standard poisson
+# poisson_model <- glm(count ~ dist_m + angle , family = poisson(link = "log"), data = join_df4)  #without offset
+# summary(poisson_model)
+# # poisson with offset
+# poisson_model_offset <- glm(count ~ dist_m + angle + offset(log(p_s2)), family = poisson(link = "log"), data = join_df4)
+# summary(poisson_model_offset)
+
+#truncated count (modelling only the magnitude of success once success is possible/observed)
+df_pos_only <- subset(join_df4, count > 0)
+# try binning to flow
+df_pos_only <- df_pos_only %>% mutate(align_cat = case_when(
+    (angle >= 281 | ang_rel_ds <= 11) ~ "Aligned",  # Within 45° of 326° (flow direction)
+    (angle >= 101 & ang_rel_ds <= 191) ~ "Aligned", # Within 45° of 146° (downstream)
+    TRUE ~ "Not Aligned"  # Everything else
+  ))
+df_pos_only$align_cat <- factor(df_pos_only$align_cat, levels = c("Not Aligned", "Aligned"))  # Reference: "Not Aligned"
+table(df_pos_only$align_cat)
+
+plot(df_pos_only$count  ~ df_pos_only$dist_m)
+plot(df_pos_only$count  ~ df_pos_only$ang_rel_ds)
+plot(df_pos_only$count  ~ df_pos_only$cos_ang)
+summary(glm(df_pos_only$count  ~ df_pos_only$cos_ang))
+range(df_pos_only$ang_rel_ds)
+library(countreg)
+trunc_pois <- zerotrunc(count ~ scale(dist_m) + align_cat, data = df_pos_only,  dist = "poisson") 
+summary(trunc_pois)
+# truncated negative binomial
+trunc_nb <- zerotrunc(count ~ scale(dist_m) + cos_ang , data = df_pos_only, dist = "negbin") # truncated negative binomial
+summary(trunc_nb) 
+AIC(trunc_pois, trunc_nb)
+
+# trunc_pois_wei <- zerotrunc(count ~ scale(dist_m) + scale(ang_rel_ds), data = df_pos_only, 
+#                         dist = "poisson", weights = suc)
+# summary(trunc_pois_wei)
+# trunc_nb_wei  <- zerotrunc(count ~ scale(dist_m) + scale(ang_rel_ds), data = df_pos_only, 
+#                       dist = "negbin", weights = suc)
+# summary(trunc_nb_wei)
+trunc_pois_offset <- zerotrunc(count ~ scale(dist_m) + cos_ang + offset(log(suc)), 
+                               data = df_pos_only, dist = "poisson")
+summary(trunc_pois_offset)
+trunc_nb_offset <- zerotrunc(count ~ scale(dist_m) + cos_ang + offset(log(suc)), 
+                             data = df_pos_only, dist = "negbin")
+summary(trunc_nb_offset)
+AIC(trunc_pois_wei, trunc_nb_wei,trunc_pois_offset, trunc_nb_offset )
+
+
+## try on colonies sire from central patch
+df_pos_only_centre <- df_pos_only[grep('c',df_pos_only$genotype.y),]
+trunc_pois <- zerotrunc(count ~ scale(dist_m) + cos_ang, data = df_pos_only_centre,  dist = "poisson") 
+summary(trunc_pois)
+# truncated negative binomial
+trunc_nb <- zerotrunc(count ~ scale(dist_m) + cos_ang , data = df_pos_only_centre, dist = "negbin") # truncated negative binomial
+summary(trunc_nb) 
+AIC(trunc_pois, trunc_nb)
+plot(df_pos_only_centre$count  ~ df_pos_only_centre$dist_m)
+plot(df_pos_only_centre$count  ~ df_pos_only_centre$cos_ang)
+
+# zero inflated
+library(pscl)
+# Zero-Inflated Poisson (ZIP) model
+zip_model <- zeroinfl(count ~ scale(dist_m) * scale(ang_rel_ds) | scale(dist_m) * scale(ang_rel_ds) , data = join_df4, dist = "poisson")
+summary(zip_model)
+# Zero-Inflated Negative Binomial (ZINB) model
+zinb_model_negbin <- zeroinfl(count ~ scale(dist_m) * scale(ang_rel_ds) | scale(dist_m) * scale(ang_rel_ds), data = join_df4, dist = "negbin")
+summary(zinb_model_negbin)
+# ZIP model with an offset added to the count component
+zip_model_offset_add <- zeroinfl(count ~ scale(dist_m) + scale(ang_rel_ds) + offset(log(p_s2))| scale(dist_m) + scale(ang_rel_ds) , data = join_df4, dist = "poisson")
+summary(zip_model_offset_add)
+# ZIP model with an offset and interaction in predictors
+zip_model_offset_int <- zeroinfl(count ~ scale(dist_m) * scale(ang_rel_ds) + offset(log(p_s2))| scale(dist_m) * scale(ang_rel_ds) , data = join_df4, dist = "poisson")
+summary(zip_model_offset_int)
+AIC(zip_model, zinb_model_negbin, zip_model_offset)
+
+# Overdispersion
+E2 <- resid(zip_model_offset_int, type = "pearson")
+N  <- nrow(join_df4)
+p  <- length(coef(zip_model_offset_int))  
+sum(E2^2) / (N - p)
+
+
+## include zeros and imputations
+#create three types of zeros. Note ive allowed some flexibility in strcutural since probabiliy is low
 join_df5 = join_df4 %>% group_by(genotype.x) %>% mutate(
-    # Sum of observed positive counts for this dam
-    sum_count = sum(count, na.rm = TRUE),
-    # Logic to classify each row:
-    final_count = case_when(
-      # 1) If suc == 0 => structural zero
-      suc == 0 ~ 0,
-      # 2) If sum(all positive count) == suc and current count=0 => true zero
-      (sum_count == suc & count == 0) ~ 0,
-      # 3) Otherwise if count=0 => set NA (missing)
-      (sum_count < suc & count == 0) ~ NA_real_,
-      # If it's already > 0, keep as is
-      TRUE ~ as.numeric(count)
-    ),
-    zero_type = case_when(suc == 0 ~ "structural_zero", (sum_count == suc & count == 0) ~ "true_zero", (sum_count < suc & count == 0) 
-                          ~ "missing_zero", count > 0 ~ "positive_count", TRUE ~ NA_character_)
-  ) %>% ungroup()
+  # Sum of observed positive counts for this dam
+  sum_count = sum(count, na.rm = TRUE),
+  # Logic to classify each row:
+  final_count = case_when(
+    # 1) If suc == 0 OR suc < 5 => structural zero
+    suc == 0 | suc < 5 ~ 0,
+    # 2) If sum(all positive count) == suc and current count=0 => true zero
+    (sum_count == suc & count == 0) ~ 0,
+    # 3) Otherwise if count=0 => set NA (missing)
+    (sum_count < suc & count == 0) ~ 0,
+    # If it's already > 0, keep as is
+    TRUE ~ as.numeric(count)
+  ),
+  zero_type = case_when(
+    suc == 0 | suc < 5 ~ "structural_zero", 
+    (sum_count == suc & count == 0) ~ "true_zero", 
+    (sum_count < suc & count == 0) ~ "missing_zero", 
+    count > 0 ~ "positive_count", 
+    TRUE ~ NA_character_
+  )
+) %>% ungroup() %>% data.frame()
+
+
+table(join_df5$zero_type)
+str(join_df5)
 
 #check no mismatches
 join_df5 %>% filter(is.na(zero_type)) %>% group_by(genotype.x) %>% summarise(count_na = n()) # Count rows per group
 # Keep only rows that are true_zero or positive_count
 
+plot(final_count ~ dist_m, data = join_df5)
+plot(final_count ~ cos_ang, data = join_df5)
+
+#ZINB
+library(glmmTMB)  # Load the package
+mod_zinb <- glmmTMB(final_count ~ dist_m + cos_ang,  # Conditional model predictors for counts
+                    ziformula = ~ suc,                # Zero-inflation component with suc as predictor
+                    family = nbinom2,                 # Negative binomial distribution (accounts for overdispersion)
+                    data = join_df5)                  # Your data containing final_count
+summary(mod_zinb)  # Display model summary
+AIC(mod_zinb)
+plot(mod_zinb)
+
+join_df5$weight <- join_df5$sum_count / join_df5$suc  # Define the sampling fraction as a weight
+mod_zinb_weighted <- glmmTMB(final_count ~ dist_m + cos_ang, 
+                             ziformula = ~ suc,
+                             family = nbinom2,
+                             data = join_df5,
+                             weights = weight)
+summary(mod_zinb_weighted)
+AIC(mod_zinb_weighted)
+
+join_df5$weight <- join_df5$sum_count / join_df5$suc  # Define the sampling fraction as a weight
+library(glmmTMB)
+
+# Define weights based on sequencing effort
+join_df5$weight <- join_df5$sum_count / join_df5$suc  
+
+#  Zero-Inflated Negative Binomial (ZINB) with suc as predictor in zero-inflation
+mod_zinb_weighted <- glmmTMB(final_count ~ dist_m + cos_ang, 
+                             ziformula = ~ suc,  # Zero-inflation modeled by suc
+                             family = nbinom2,
+                             data = join_df5,
+                             weights = weight)
+
+#  Zero-Inflated Negative Binomial (ZINB) with only an intercept (no suc in zi component)
+mod_zinb_intercept <- glmmTMB(final_count ~ dist_m + cos_ang, 
+                              ziformula = ~ 1,  # Zero-inflation component but no predictor
+                              family = nbinom2,
+                              data = join_df5,
+                              weights = weight)
+
+#  Standard Negative Binomial (NB) (No Zero-Inflation)
+mod_nb <- glmmTMB(final_count ~ dist_m + cos_ang, 
+                  family = nbinom2, 
+                  data = join_df5,
+                  weights = weight)
+summary(mod_nb)
+
+# Compare AIC values
+AIC(mod_zinb_weighted, mod_zinb_intercept, mod_nb)  #mod_nb is best
+
+
+sum(resid(mod_zinb, type = "pearson")^2) / (nrow(data1) - length(coef(mod_zinb))) # (overdispsrion glm Zuur)
+library(RVAideMemoire) # GLMM overdispersion test
+library(performance)
+# check_overdispersion(md1)  #only for count data
+plot(fitted(mod_zinb), resid(mod_zinb)) # fitted vs residuals
+abline(h = 0)
+AIC(mod_zinb) # if the better model is 2 or less, use the simpler model
+MuMIn::AICc(mod_zinb)
+performance::r2(mod_zinb)
+icc(mod_zinb) # Intraclass Correlation Coefficient
+check_zeroinflation(mod_zinb)
+check_singularity(mod_zinb)
+check_model(mod_nb)
+library(DHARMa)
+sim_res <- simulateResiduals(mod_nb)
+plot(sim_res)
 
 # #remove missing and structural
 # join_df4 <- join_df4 %>%
 #   filter(!(zero_type %in% c("structural_zero", "missing_zero"))) # Keep only rows that are true_zero or positive_count
 # 
-
 
 # imputation --------------------------------------------------------------
 ## attempting imputation
@@ -409,81 +584,45 @@ summary(nb_models)
 # join_df4 <- join_df4 %>%
 #   filter(!is.na(weight))
 
-## data exploration
-hist(join_df4$dist_m)
-plot(join_df4$count~ (join_df4$dist_m))  
-plot(join_df4$count~ (join_df4$ang_rel_ds))  
-plot(join_df4$count~ (join_df4$cos_ang ))
-join_df4 = join_df4[which(as.character(join_df4$genotype.x) != as.character(join_df4$genotype.y)),]  # remove selfing
-str(join_df4)
-# #standard poisson
-# poisson_model <- glm(count ~ dist_m + angle , family = poisson(link = "log"), data = join_df4)  #without offset
-# summary(poisson_model)
-# # poisson with offset
-# poisson_model_offset <- glm(count ~ dist_m + angle + offset(log(p_s2)), family = poisson(link = "log"), data = join_df4)
-# summary(poisson_model_offset)
-
-#truncated count (modelling only the magnitude of success once success is possible/observed)
-df_pos_only <- subset(join_df4, count > 0)
-plot(df_pos_only$count  ~ df_pos_only$dist_m)
-plot(df_pos_only$count  ~ df_pos_only$ang_rel_ds)
-plot(df_pos_only$count  ~ df_pos_only$cos_ang)
-range(df_pos_only$ang_rel_ds)
-library(countreg)
-trunc_pois <- zerotrunc(count ~ scale(dist_m) + cos_ang, data = df_pos_only,  dist = "poisson") 
-summary(trunc_pois)
-# truncated negative binomial
-trunc_nb <- zerotrunc(count ~ scale(dist_m) + cos_ang , data = df_pos_only, dist = "negbin") # truncated negative binomial
-summary(trunc_nb) 
-AIC(trunc_pois, trunc_nb)
-
-# trunc_pois_wei <- zerotrunc(count ~ scale(dist_m) + scale(ang_rel_ds), data = df_pos_only, 
-#                         dist = "poisson", weights = suc)
-# summary(trunc_pois_wei)
-# trunc_nb_wei  <- zerotrunc(count ~ scale(dist_m) + scale(ang_rel_ds), data = df_pos_only, 
-#                       dist = "negbin", weights = suc)
-# summary(trunc_nb_wei)
-trunc_pois_offset <- zerotrunc(count ~ scale(dist_m) + cos_ang + offset(log(suc)), 
-                        data = df_pos_only, dist = "poisson")
-summary(trunc_pois_offset)
-trunc_nb_offset <- zerotrunc(count ~ scale(dist_m) + cos_ang + offset(log(suc)), 
-                      data = df_pos_only, dist = "negbin")
-summary(trunc_nb_offset)
-AIC(trunc_pois_wei, trunc_nb_wei,trunc_pois_offset, trunc_nb_offset )
+# ZIB mixture model
+###prepare binomial outcome. This crunches multiple observations to 1. 
+join_df6 = join_df5 %>% mutate(cross_occurrence = if_else(is.na(final_count), 0L, if_else(final_count > 0, 1L, 0L))) %>% 
+  dplyr::select(genotype.x, genotype.y, cross_occurrence, suc, sum_count, zero_type, count, lat.x, lon.x, lat.y, lon.y, dist_m, ang_rel_ds, cos_ang, ang_no_flow, angle)  # Create binary outcome and select key columns
+join_df6 <- join_df6 %>% mutate(trials = 1)  # Add a column indicating one trial per observation
+library(glmmTMB) # Load glmmTMB package
+mod_zib <- glmmTMB(cross_occurrence ~ dist_m + cos_ang, # Conditional model predictors
+                   ziformula = ~ suc, # Zero‐inflation component predictor (e.g. fertilisation success. 
+                   family = binomial, # Specify binomial family for binary outcome
+                   data = join_df6) # Use prepared dataset with binary outcome
+summary(mod_zib) # Display model summary
 
 
-## try on colonies sire from central patch
-df_pos_only_centre <- df_pos_only[grep('c',df_pos_only$genotype.y),]
-trunc_pois <- zerotrunc(count ~ scale(dist_m) + cos_ang, data = df_pos_only_centre,  dist = "poisson") 
-summary(trunc_pois)
-# truncated negative binomial
-trunc_nb <- zerotrunc(count ~ scale(dist_m) + cos_ang , data = df_pos_only_centre, dist = "negbin") # truncated negative binomial
-summary(trunc_nb) 
-AIC(trunc_pois, trunc_nb)
-plot(df_pos_only_centre$count  ~ df_pos_only_centre$dist_m)
-plot(df_pos_only_centre$count  ~ df_pos_only_centre$cos_ang)
+library(brms)  # Load the brms package
+# Define the model formula with zero-inflation
+zib_formula <- bf(
+  cross_occurrence | trials(1) ~ dist_m + cos_ang,  # Conditional model (logit-link Bernoulli)
+  zi ~ suc  # Zero-inflation modeled as a function of suc
+)
+# Set priors for both the conditional and zero-inflation components
+priors <- c(
+  set_prior("normal(-4, 1)", class = "Intercept"),               # Main model intercept
+  set_prior("normal(0, 1)", class = "b"),                        # Priors for dist_m and cos_ang effects
+  set_prior("normal(4, 1)", class = "Intercept", dpar = "zi"),   # Zero-inflation intercept (high probability of structural zeros)
+  set_prior("normal(-2, 0.5)", class = "b", dpar = "zi")         # Effect of suc on zero-inflation
+)
+# Fit the Zero-Inflated Binomial (ZIB) model
+m <- brm(
+  formula = zib_formula,  # Use the defined formula
+  data = join_df6,  # Use dataset with binary response (0/1)
+  family = zero_inflated_binomial(),  # Zero-inflated binomial family
+  prior = priors,  # Apply informed priors
+  chains = 4, cores = 4, iter = 2000, control = list(adapt_delta = 0.95)  # Improve sampling stability
+)
+summary(m)
 
-# zero inflated
-library(pscl)
-# Zero-Inflated Poisson (ZIP) model
-zip_model <- zeroinfl(count ~ scale(dist_m) * scale(ang_rel_ds) | scale(dist_m) * scale(ang_rel_ds) , data = join_df4, dist = "poisson")
-summary(zip_model)
-# Zero-Inflated Negative Binomial (ZINB) model
-zinb_model_negbin <- zeroinfl(count ~ scale(dist_m) * scale(ang_rel_ds) | scale(dist_m) * scale(ang_rel_ds), data = join_df4, dist = "negbin")
-summary(zinb_model_negbin)
-# ZIP model with an offset added to the count component
-zip_model_offset_add <- zeroinfl(count ~ scale(dist_m) + scale(ang_rel_ds) + offset(log(p_s2))| scale(dist_m) + scale(ang_rel_ds) , data = join_df4, dist = "poisson")
-summary(zip_model_offset_add)
-# ZIP model with an offset and interaction in predictors
-zip_model_offset_int <- zeroinfl(count ~ scale(dist_m) * scale(ang_rel_ds) + offset(log(p_s2))| scale(dist_m) * scale(ang_rel_ds) , data = join_df4, dist = "poisson")
-summary(zip_model_offset_int)
-AIC(zip_model, zinb_model_negbin, zip_model_offset)
 
-# Overdispersion
-E2 <- resid(zip_model_offset_int, type = "pearson")
-N  <- nrow(join_df4)
-p  <- length(coef(zip_model_offset_int))  
-sum(E2^2) / (N - p)
+
+
 
 
 # plots -------------------------------------------------------------------
