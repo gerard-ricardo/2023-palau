@@ -73,12 +73,16 @@ summary_data <- summary_data %>%
 
 data1_long = summary_data %>% tidyr::pivot_longer(-c(CloneID, id) ,  names_to = "base" ,values_to = "code") %>% arrange(., CloneID, id) %>% data.frame()  #keep vec.x, add all other columns to factors , add all their values to meas)
 data1_long$LocusID = paste0(data1_long$CloneID, data1_long$base)
-result <- data1_long %>% group_by(CloneID) %>% summarise(star_count = sum(code == "NA"))
-hist(result$star_count)
-quantile(result$star_count)
-nrow(data1_long)  #2111808, 5,176 unique allele
-length(unique(data1_long$CloneID))
-good_loci = result[which(result$star_count < 40),]  #hard filter to keep loci around 2000
+#result <- data1_long %>% group_by(CloneID) %>% summarise(star_count = sum(code == "NA"))
+result <- data1_long %>%
+  group_by(CloneID) %>%
+  summarise(missing_prop = sum(code == "NA") / n())
+hist(result$missing_prop)
+quantile(result$missing_prop)
+nrow(data1_long)  #599382, 
+length(unique(data1_long$CloneID))  #1491
+good_loci = result %>% filter(missing_prop < 0.01)  # Adjust threshold as needed
+nrow(good_loci)  #939
 data1_long <- data1_long %>%
   semi_join(good_loci, by = "CloneID")
 length(unique(data1_long$CloneID))  #2621, 955

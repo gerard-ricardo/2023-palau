@@ -1,4 +1,6 @@
 # clones and genetic relatedness------------------------------------------------------------------
+library(igraph)
+library(ggraph)
 
 # Perform MLG analysis
 mlg_analysis <- mlg(data_genind_adult)

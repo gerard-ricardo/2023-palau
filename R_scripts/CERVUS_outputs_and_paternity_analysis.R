@@ -3,7 +3,7 @@
 ##Proiorites
 #add genetic relatedness between each parent pair inot the glm.
 #add colony size
-#sort out filtering
+#filtering sorted but need to rerun
 
 
 ## Notes
@@ -49,8 +49,9 @@ source("https://raw.githubusercontent.com/gerard-ricardo/data/master/theme_sleek
 
 # Import cervus out data and prep-----------------------------------------------------------
 #(data1 <- read.csv(file = file.path("C:/Users/gerar/OneDrive/1_Work/4_Writing/1_Palau genetics mixing/Cervus", "parentage_out1.csv")))
-#dDocent
-(data1 <- read.csv(file = file.path("C:/Users/gerar/OneDrive/1_Work/4_Writing/1_Palau genetics mixing/Cervus", "summary_out_docent.csv")))
+#dDocent (make sure '.' between split words
+(data1 <- read.csv(file = file.path("C:/Users/gerar/OneDrive/1_Work/4_Writing/1_Palau genetics mixing/Cervus", 
+                                    "summary_out_docent.csv"), check.names = T))
 
 data1$Mother.ID <- sub("_5", "_05", data1$Mother.ID)
 data1$Candidate.father.ID <- sub("_5", "_05", data1$Candidate.father.ID)
@@ -69,7 +70,7 @@ nrow(data2)  #108 larvae
 load("./Rdata/data_gl.RData")  #data_gl.RData
 meta = data_gl@other$ind.metrics
 meta = meta  %>% rename(id2 = id) %>% mutate(id = paste0("X", id2)) 
-meta2 <- meta %>% dplyr::select(c(id, lat, lon, genotype ))
+meta2 <- meta %>% dplyr::select(c(id, lat, lon, genotype, total_mean_dia ))
 #meta2 <- meta2 %>% mutate(genotype = gsub("_5$", "_05", genotype))
 "X7_05_2" %in% meta2$id
 
@@ -81,9 +82,9 @@ pairs_df <- expand.grid(genotype.x = as.character(unique_meta$genotype),
           genotype.y = as.character(unique_meta$genotype), stringsAsFactors=FALSE) %>% 
           filter(genotype.x < genotype.y) # Unique pairwise combinations
 str(pairs_df)
-pairs_df <- pairs_df %>% left_join(unique_meta %>% dplyr::select(genotype,lat,lon), by=c("genotype.x"="genotype")) %>% 
+pairs_df <- pairs_df %>% left_join(unique_meta %>% dplyr::select(genotype,lat,lon, total_mean_dia), by=c("genotype.x"="genotype")) %>% 
           rename(lat.x=lat,lon.x=lon) # Add lat/lon for genotype.x
-pairs_df <- pairs_df %>% left_join(unique_meta %>% dplyr::select(genotype,lat,lon), by=c("genotype.y"="genotype")) %>% 
+pairs_df <- pairs_df %>% left_join(unique_meta %>% dplyr::select(genotype,lat,lon,total_mean_dia), by=c("genotype.y"="genotype")) %>% 
           rename(lat.y=lat,lon.y=lon) # Add lat/lon for genotype.y
 points_x <- st_as_sf(pairs_df,coords=c("lon.x","lat.x"),crs=4326) # Create sf object for first point
 points_y <- st_as_sf(pairs_df,coords=c("lon.y","lat.y"),crs=4326) # Create sf object for second point
@@ -306,8 +307,8 @@ all_pairs <- expand.grid(genotype.x = unique_dams, genotype.y = unique_sires)
 #observed_crosses <- join_df2 %>% dplyr::select(genotype.x, genotype.y) %>% mutate(count = 1)
 observed_crosses_aggregated <- join_df2 %>% group_by(genotype.x, genotype.y) %>% summarise(count = n(), .groups = 'drop') #agreegate multiple pairwise crosses
 complete_data <-left_join(all_pairs, observed_crosses_aggregated, by = c("genotype.x", "genotype.y")) %>% mutate(count = replace_na(count, 0))
-meta2_selected <- meta2 %>% mutate(genotype.x = genotype) %>% dplyr::select(genotype.x, lat, lon) %>% distinct() %>% na.omit()
-meta2_selected_y <- meta2 %>% mutate(genotype.y = genotype) %>% dplyr::select(genotype.y, lat, lon) %>% distinct() %>% na.omit()
+meta2_selected <- meta2 %>% mutate(genotype.x = genotype) %>% dplyr::select(genotype.x, lat, lon, total_mean_dia) %>% distinct() %>% na.omit()
+meta2_selected_y <- meta2 %>% mutate(genotype.y = genotype) %>% dplyr::select(genotype.y, lat, lon, total_mean_dia) %>% distinct() %>% na.omit()
 join_df3 = left_join(complete_data, meta2_selected, by = c("genotype.x"), relationship = "many-to-one") %>% rename(lat.x = lat, lon.x = lon)
 join_df3 = left_join(join_df3, meta2_selected_y, by = c("genotype.y"), relationship = "many-to-one") %>% rename(lat.y = lat, lon.y = lon)
 #remove c2 and c4 for the moment
@@ -343,7 +344,7 @@ str(join_df4)
 # poisson_model_offset <- glm(count ~ dist_m + angle + offset(log(p_s2)), family = poisson(link = "log"), data = join_df4)
 # summary(poisson_model_offset)
 
-#truncated count (modelling only the magnitude of success once success is possible/observed)
+## truncated count (modelling only the magnitude of success once success is possible/observed)
 df_pos_only <- subset(join_df4, count > 0)
 # try binning to flow
 df_pos_only <- df_pos_only %>% mutate(align_cat = case_when(
@@ -474,32 +475,57 @@ AIC(mod_zinb_weighted)
 join_df5$weight <- join_df5$sum_count / join_df5$suc  # Define the sampling fraction as a weight
 library(glmmTMB)
 
-# Define weights based on sequencing effort
-join_df5$weight <- join_df5$sum_count / join_df5$suc  
+join_df5$weight <- ifelse(join_df5$sum_count == join_df5$suc, 
+                          1,  # Assign weight of 1 when sum_count == suc
+                          join_df5$sum_count / join_df5$suc)  # Otherwise, use the existing formula
+
 
 #  Zero-Inflated Negative Binomial (ZINB) with suc as predictor in zero-inflation
-mod_zinb_weighted <- glmmTMB(final_count ~ dist_m + cos_ang, 
+mod_zinb_weighted <- glmmTMB(final_count ~ dist_m + cos_ang + total_mean_dia.y, 
+                             ziformula = ~ suc,  # Zero-inflation modeled by suc
+                             family = nbinom2,
+                             data = join_df5,
+                             weights = weight)
+
+mod_zinb_weighted_nodia <- glmmTMB(final_count ~ dist_m + cos_ang, 
                              ziformula = ~ suc,  # Zero-inflation modeled by suc
                              family = nbinom2,
                              data = join_df5,
                              weights = weight)
 
 #  Zero-Inflated Negative Binomial (ZINB) with only an intercept (no suc in zi component)
-mod_zinb_intercept <- glmmTMB(final_count ~ dist_m + cos_ang, 
+mod_zinb_intercept <- glmmTMB(final_count ~ dist_m + cos_ang + total_mean_dia.y, 
                               ziformula = ~ 1,  # Zero-inflation component but no predictor
                               family = nbinom2,
                               data = join_df5,
                               weights = weight)
 
 #  Standard Negative Binomial (NB) (No Zero-Inflation)
-mod_nb <- glmmTMB(final_count ~ dist_m + cos_ang, 
+mod_nb <- glmmTMB(final_count ~ dist_m + cos_ang + total_mean_dia.y, 
                   family = nbinom2, 
                   data = join_df5,
                   weights = weight)
 summary(mod_nb)
 
 # Compare AIC values
-AIC(mod_zinb_weighted, mod_zinb_intercept, mod_nb)  #mod_nb is best
+AIC(mod_zinb_weighted, mod_zinb_intercept, mod_nb, mod_zinb_weighted_nodia)  #mod_nb is best
+
+# Attempted automated model selection
+library(glmmTMB)
+library(MuMIn)  # For model selection
+
+
+global_model <- glmmTMB(final_count ~ dist_m * cos_ang * total_mean_dia.y,  
+                        ziformula = ~ suc,  # Include zero-inflation
+                        family = nbinom2,
+                        data = join_df5,
+                        weights = weight,
+                        na.action = na.fail)  # Ensure NA handling works with MuMIn
+
+dredged_models <- dredge(global_model, rank = "AIC")
+(best_models <- subset(dredged_models, delta < 2))  # Select models within ΔAIC < 2
+#mod_zinb_weighted_nodia best
+
 
 
 sum(resid(mod_zinb, type = "pearson")^2) / (nrow(data1) - length(coef(mod_zinb))) # (overdispsrion glm Zuur)
@@ -508,16 +534,15 @@ library(performance)
 # check_overdispersion(md1)  #only for count data
 plot(fitted(mod_zinb), resid(mod_zinb)) # fitted vs residuals
 abline(h = 0)
-AIC(mod_zinb) # if the better model is 2 or less, use the simpler model
-MuMIn::AICc(mod_zinb)
 performance::r2(mod_zinb)
 icc(mod_zinb) # Intraclass Correlation Coefficient
-check_zeroinflation(mod_zinb)
+check_zeroinflation(mod_zinb_weighted_nodia)
 check_singularity(mod_zinb)
 check_model(mod_nb)
 library(DHARMa)
-sim_res <- simulateResiduals(mod_nb)
+sim_res <- simulateResiduals(mod_zinb_weighted_nodia)
 plot(sim_res)
+check_outliers(mod_zinb_weighted_nodia)
 
 # #remove missing and structural
 # join_df4 <- join_df4 %>%
