@@ -1,6 +1,8 @@
 ## following the vcf link (vcf files complex to recreate from given inputs)
 #try using https://rdrr.io/cran/dartR/man/gl2vcf.html
 
+#aadded some addition following orginal filtering, Jenkins et al 2024, and Premachandra 2019
+
 
 
 # Load required libraries ----------------------------------------------------
@@ -47,16 +49,30 @@ load("./Rdata/2023_Acro_hyac_gl_dDocent.RData")  #data_gl
 data_gl_filtered <- data_gl
 #ind =  217  , loci = 50405 
 
-# Initial Filtering with Call Rate and MAF ---------------------------
+# 1. Initial Filtering with Call Rate and MAF ---------------------------
+
+# Step 3: Remove Individuals with High Missing Data --------------------------
+# Filter individuals with call rate less than 50% (more than 50% missing data)
+ind_before <- indNames(data_gl_filtered)
+data_gl_filtered <- gl.filter.callrate(data_gl_filtered, method = "ind", threshold = 0.5, v = 3)
+ind_after <- indNames(data_gl_filtered)
+(removed_individuals <- setdiff(ind_before, ind_after))
+#ind = 201     , loci = 50405     
+# > (removed_individuals <- setdiff(ind_before, ind_after))
+# [1] "160" "66"  "61"  "154" "169" "53"  "43"  "110" "210" "108" "202" "213" "87"  "206" "78"  "111"
 
 # 1a. Filter loci with call rate less than 50% (missing in more than 50% of individuals)
 data_gl_filtered <- gl.filter.callrate(data_gl_filtered, method = "loc", threshold = 0.5, v = 3) # Equivalent to --max-missing 0.5
-#ind =  217  , loci = 30726 
+#ind =  201   , loci = 32137  
 
-# 1b. Filter loci with Minor Allele Frequency (MAF) less than 0.05
+# 1b. Filter loci with Minor Allele Frequency (MAF) less than 0.05 (could be too strict for selfing)
 data_gl_filtered <- gl.filter.maf(data_gl_filtered, threshold = 0.05, v = 3)
 # This is equivalent to --maf 0.05 in vcftools
-#ind = 217   , loci = 18611 
+#ind = 201    , loci = 19563  
+
+#Monomorphs
+data_gl_filtered <- gl.filter.monomorphs(data_gl_filtered, verbose = 2)
+#ind = 201    , loci = 16728  
 
 # Step 2: Filter Genotypes by Minimum Read Depth -----------------------------
 
@@ -64,14 +80,7 @@ data_gl_filtered <- gl.filter.maf(data_gl_filtered, threshold = 0.05, v = 3)
 # Assuming 'AvgDepth' represents average depth per locus
 data_gl_filtered <- gl.filter.rdepth(data_gl_filtered, lower = 3, v = 3)
 # This approximates filtering genotypes with DP < 3
-#ind = 217   , loci = 16540  
-
-# Step 3: Remove Individuals with High Missing Data --------------------------
-
-# Filter individuals with call rate less than 50% (more than 50% missing data)
-data_gl_filtered <- gl.filter.callrate(data_gl_filtered, method = "ind",
-                                       threshold = 0.5, v = 3)
-#ind = 204    , loci = 16540  
+#ind = 201    , loci = 16504   
 
 
 # # Recalculate metrics after initial cleaning
@@ -80,17 +89,18 @@ data_gl_filtered <- gl.recalc.metrics(data_gl_filtered, v = 3)
 # Step 4: Apply Stricter Filters on Loci -------------------------------------
 
 # 4a. Filter loci with call rate less than 95% (missing in more than 5% of individuals)
-data_gl_filtered <- gl.filter.callrate(data_gl_filtered, method = "loc",
-                                       threshold = 0.95, v = 3)
-#ind = 204    , loci = 2852  
+data_gl_filtered <- gl.filter.callrate(data_gl_filtered, method = "loc", threshold = 0.95, v = 3)
+#ind = 201     , loci = 3698   
 
-# 4b. Ensure MAF ≥ 0.05 (already applied in Step 1b)
 
 # 4c. Filter loci with mean depth less than 20
 data_gl_filtered <- gl.filter.rdepth(data_gl_filtered, lower = 20, v = 3)
-#ind = 204    , loci = 1543 
+#ind = 201     , loci = 2340  
 
 # Step 5: Remove Loci with High Missing Data within Populations --------------
+
+#data_gl_filtered <- gl.filter.missloc(data_gl_filtered, threshold = 0.9, v = 3)
+
 
 # # If population information is available in your metadata, assign populations
 # # For example, if your metadata has a column 'Population'
@@ -156,23 +166,35 @@ min_depth = mean_depth - 3 * sd_depth
 
 # Filter loci based on total read depth
 data_gl_filtered <- gl.filter.rdepth(data_gl_filtered, lower = min_depth, upper = max_depth, v = 3)
-#ind = 204    , loci = 1543 
+#ind = 201     , loci = 2311   
 
 
-# Step 11: Filter Loci Deviating from Hardy-Weinberg Equilibrium (HWE) ------- (not sure if nessasry)
+#linkage dis (might not be good for selfing)
+ld_res <- gl.report.ld.map(data_gl_filtered)
+data_gl_filtered <- gl.filter.ld(data_gl_filtered, threshold = 0.2, v = 3)
+#ind = 201     , loci = 1889  
+
+data_gl_filtered <- gl.filter.secondaries(data_gl_filtered, method = "random", v = 3)
+#ind = 201     , loci = 1889  
+
+
+# Step 11: Filter Loci Deviating from Hardy-Weinberg Equilibrium (HWE) ------- (not sure if nessasry - may not be
+#good for selfing pops)
 
 data_gl_filtered <- gl.filter.hwe(
-  x = data_gl_filtered,         # The genlight object with SNP data
-  subset = "all",               # Ignore population structure, treat as a single population
-  n.pop.threshold = 1,          # Only one "population" considered, so set threshold to 1
-  #method_sig = "Exact",         # Use the Exact test, which is more accurate for HWE
-  #multi_comp = TRUE,            # Apply multiple testing correction
-  #multi_comp_method = "fdr",    # Use False Discovery Rate (FDR) correction for multiple comparisons
-  #alpha_val = 0.01,             # p-value threshold for HWE violations after FDR correction
-  #min_sample_size = 5,          # Minimum sample size to apply the HWE test (irrelevant here with "all" but kept as default)
-  verbose = 2                   # Set verbosity to track progress
+  x = data_gl_filtered,         
+  subset = "each",              # Perform HWE filtering per population
+  n.pop.threshold = 1,          # Filter SNPs that fail in at least 1 population
+  test.type = "Exact",          # Use Exact test for small sample sizes
+  mult.comp.adj = TRUE,         # Apply multiple testing correction
+  mult.comp.adj.method = "fdr", # Use False Discovery Rate (FDR) correction
+  alpha = 0.01,                 # Stricter p-value threshold for filtering
+  n.min = 5,                    # Ignore populations with <5 individuals
+  verbose = 2                   # Set verbosity for tracking
 )
-#ind = 204    , loci = 908 
+data_gl_filtered
+
+#ind = 201     , loci = 1889  
 
 
 # # Perform HWE test per locus per population using 'pegas' package
