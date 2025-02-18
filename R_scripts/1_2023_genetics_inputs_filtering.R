@@ -1,4 +1,7 @@
-##Filtering
+##NOW REDUNDANT!
+
+
+#Filtering
 
 ##Workflow
 # 1) Run either this filtering or dDocent filtering
@@ -44,12 +47,10 @@ source("https://raw.githubusercontent.com/gerard-ricardo/data/master/theme_sleek
 # # [1] "40"  "137" "196"
 # 
 # 
-# 
 # # 5_10_1 must be the missing 3_05_1, they are genetically identical and labeling flagged in notes
 # indNames(data_gl) <- gsub("5_10_1", "3_05_1", indNames(data_gl)) #
 # # remove c5_1 as it doesn't seem to match any others (possible contamination?)
 # data_gl <- data_gl[!indNames(data_gl) %in% "c5_1"] # Subset to exclude "c5_1"
-# 
 # 
 # # recalculate metrics
 # data_gl <- gl.recalc.metrics(data_gl, v = 3) # recalculate loci metrics

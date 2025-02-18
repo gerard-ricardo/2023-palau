@@ -2,7 +2,7 @@
 
 ##
 ####NOTE: Seems to be too many canidate reps n offspring file
-data1 <- data_genind@tab  # This assumes SNP data is stored in the 'tab' slot of the genind object
+data1 <- data_genind_pre@tab  # This assumes SNP data is stored in the 'tab' slot of the genind object
 head(data1)
 
 data1 = t(data1) %>% data.frame()
@@ -11,14 +11,15 @@ colnames(data1) <- gsub("\\.", "_", colnames(data1))
 colnames(data1) <- ifelse(grepl("^X", colnames(data1)), colnames(data1), paste0("X", colnames(data1)))
 
 data1$rownames <- rownames(data1)
-data1 <- data1 %>% mutate(CloneID = sub("-.*", "", rownames), allele = sub(".*\\.(.)$", "\\1", rownames)) %>% 
-  select(CloneID, allele, everything()) %>% select(-rownames) %>% arrange(., CloneID)
+#
+data2 <- data1 %>% mutate(CloneID = sub("-.*", "", rownames), allele = sub(".*\\.(.)$", "\\1", rownames)) %>% 
+  dplyr::select(CloneID, allele, everything()) %>% dplyr::select(-rownames) %>% arrange(., CloneID)
 #data1 %>%  dplyr::select(., CloneID, pd13_l_14_11, pd13_a_1) %>% filter(., CloneID == check )  #
 
 #this is correct, so there must be an issue with extracting from the genlight
 
 #data2 = data1[8:16, 1:5]
-data1_long = data1 %>% tidyr::pivot_longer(-c(CloneID, allele) ,  names_to = "id" ,values_to = "counts") %>% arrange(., CloneID, id) %>% data.frame()  #keep vec.x, add all other columns to factors , add all their values to meas)
+data1_long = data2 %>% tidyr::pivot_longer(-c(CloneID, allele) ,  names_to = "id" ,values_to = "counts") %>% arrange(., CloneID, id) %>% data.frame()  #keep vec.x, add all other columns to factors , add all their values to meas)
 
 
 nrow(data1_long)  #91413
@@ -82,11 +83,12 @@ quantile(result$missing_prop)
 nrow(data1_long)  #599382, 
 length(unique(data1_long$CloneID))  #1491
 good_loci = result %>% filter(missing_prop < 0.01)  # Adjust threshold as needed
-nrow(good_loci)  #939
+nrow(good_loci)  #863
+print(paste('You have', nrow(good_loci), 'good loci'))
 data1_long <- data1_long %>%
   semi_join(good_loci, by = "CloneID")
 length(unique(data1_long$CloneID))  #2621, 955
-data1_long = data1_long %>% select(-c(CloneID , base))
+data1_long = data1_long %>% dplyr::select(-c(CloneID , base))
 data1_long <- data1_long %>%
   mutate(code = ifelse(code == "NA", "*", code))
 

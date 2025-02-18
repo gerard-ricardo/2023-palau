@@ -2,8 +2,7 @@
 
 ##Proiorites
 #add genetic relatedness between each parent pair inot the glm.
-#add colony size
-#filtering sorted but need to rerun
+#filtering sorted but need to rerun (NOTE: '_05' SHOWNG IN SUMMARY_OUT.CSV LEADING TO LOST LARVAE. NEED TO FIX
 
 
 ## Notes
@@ -41,6 +40,7 @@ library(CircStats)
 library(dplyr)
 library(reshape2)
 library(spatstat)
+library(glmmTMB)
 source("https://raw.githubusercontent.com/gerard-ricardo/data/master/theme_sleek2") # set theme in code
 source("https://raw.githubusercontent.com/gerard-ricardo/data/master/theme_sleek1") # set theme in code
 source("https://raw.githubusercontent.com/gerard-ricardo/data/master/theme_sleek3") # set theme in code
@@ -94,7 +94,6 @@ pairs_df$dist <- st_distance(points_x_proj,points_y_proj,by_element=TRUE) # Calc
 pairs_df$dist_m <- as.numeric(pairs_df$dist) # Convert distance to numeric (meters)
 ggplot(pairs_df, aes(x=dist_m)) + geom_density(fill="blue",alpha=0.3,colour="blue") + labs(x="Distance (m)",y="Probability Density",title="Pairwise Distance Distribution") + theme_minimal() # Plot density
 quantile(pairs_df$dist_m)
-
 meta2_2 <- meta2 %>% na.omit() %>% distinct(genotype, .keep_all=TRUE) 
 meta2_2_sf <- st_as_sf(meta2_2, coords = c("lon", "lat"), crs = 4326) # Convert to sf
 meta2_2_proj <- st_transform(meta2_2_sf, crs = 32653) # Project to UTM
@@ -106,13 +105,29 @@ plot(density_map, main="Spatial Density of Population")
 points(points_ppp, pch=20, col="red") # Overlay points
 mean_density <- mean(density_map$v) # Compute mean intensity (points per square meter)
 #0.02 points per m^2 but not orientated
-
 # join tables 
 join_df1 <- left_join(data2, meta2, by = 'id')  #add mother lat lon
 join_df1 <- join_df1 %>% dplyr::select(-id) %>% mutate(id = fath_id)  #reset id to fathers
 join_df2 <- left_join(join_df1, meta2, by = 'id')  #add father lat lon
 nrow(join_df2)
 
+#add genetic relatedness (run 2a first)
+adult_colonies1 = adult_colonies_sort
+#adult_colonies1$Individual1 <- paste0("X", adult_colonies1$Individual1) # Add 'X' to Individual1
+#adult_colonies1$Individual2 <- paste0("X", adult_colonies1$Individual2) # Add 'X' to Individual2
+adult_colonies1 = adult_colonies1 %>% rename(genotype.x = Individual1, genotype.y = Individual2) %>% 
+  mutate(genotype.x = as.factor(genotype.x), genotype.y = as.factor(genotype.y)) 
+str(adult_colonies1)
+adult_colonies1 <- adult_colonies1 %>%
+  mutate(genotype_x_trimmed = sub("_[^_]*$", "", genotype.x)) # Remove final '_' and trailing characters from genotype.x
+adult_colonies1 <- adult_colonies1 %>%
+  mutate(genotype_y_trimmed = sub("_[^_]*$", "", genotype.y)) # Remove final '_' and trailing characters from genotype.y
+
+genetic_dist_ave <- adult_colonies1 %>%
+  group_by(genotype_x_trimmed, genotype_y_trimmed ) %>% summarise(mean_Distance = mean(Distance, na.rm = TRUE)) %>% # Compute mean Distance
+  ungroup() %>% rename(genotype.x = genotype_x_trimmed , genotype.y = genotype_y_trimmed, gen_dist = mean_Distance ) %>% 
+  data.frame()# Remove grouping
+#add onto join_df3
 
 
 #try normalizing to weight larvae. This means that multiple larvae from the same mother are given less weight.
@@ -243,19 +258,21 @@ join_df2$weight_distance <- 1/dens_func(join_df2$dist_m) # Assign a weight to ea
 weighted_quantiles <- wtd.quantile(join_df2$dist_m, weights = join_df2$weight_distance, probs=c(0,0.25,0.5,0.83,1)) # Compute weighted quantiles adjusting for sampling bias
 weighted_quantiles # Display the weighted quantiles
 join_df2_2 = join_df2 %>%  dplyr::select(c(dist_m, weight_distance))
-ggplot(join_df2, aes(x=dist_m)) + geom_density(aes(fill="blue", alpha=0.3,colour="blue", weight = weight_distance))+
+ggplot(join_df2, aes(x=dist_m)) + geom_density(aes(fill="blue", alpha=0.3, colour="blue", weight = weight_distance))+
   labs(x="Distance (m)",y="Probability Density",title="Pairwise Distance Distribution") + theme_minimal() # Plot density
 
 join_df2$dist_m
 
 
 
-## selfing
+## selfing (see below)
 selfing_id = join_df2[which(join_df2$dist_m == 0),]  #self fertilisation
 selfing_no = nrow(selfing_id)
 (selfing_prop = sum(selfing_id$normalised_weight) / sum(join_df2$normalised_weight))  #normalised selfing
 #most of these from individual (5/7) from 7_10. Interesting other fragments didnt have this though. 
 sum(selfing_id$normalised_weight[c(1,3)]) /sum(join_df2$normalised_weight)  #normalised with Adult 7 removed
+
+
 
 ## non participants
 meta3 <- meta2[complete.cases(meta2), ] # make sure import matches NA type
@@ -313,6 +330,14 @@ join_df3 = left_join(complete_data, meta2_selected, by = c("genotype.x"), relati
 join_df3 = left_join(join_df3, meta2_selected_y, by = c("genotype.y"), relationship = "many-to-one") %>% rename(lat.y = lat, lon.y = lon)
 #remove c2 and c4 for the moment
 join_df3 <- join_df3[complete.cases(join_df3), ] # make sure import matches NA type
+
+#add on genetic distances
+join_df3 = left_join(join_df3, genetic_dist_ave, by = c("genotype.x", "genotype.y"))
+head(join_df3)
+join_df3 %>% filter(count > 0 & gen_dist <200)
+
+
+
 points_x_proj <- st_as_sf(join_df3, coords = c("lon.x", "lat.x"), crs = 4326) %>% st_transform(crs = 32653)
 points_y_proj <- st_as_sf(join_df3, coords = c("lon.y", "lat.y"), crs = 4326) %>% st_transform(crs = 32653)
 join_df3$dist_m <- as.numeric(st_distance(points_x_proj, points_y_proj, by_element = TRUE))
@@ -395,26 +420,26 @@ plot(df_pos_only_centre$count  ~ df_pos_only_centre$dist_m)
 plot(df_pos_only_centre$count  ~ df_pos_only_centre$cos_ang)
 
 # zero inflated
-library(pscl)
-# Zero-Inflated Poisson (ZIP) model
-zip_model <- zeroinfl(count ~ scale(dist_m) * scale(ang_rel_ds) | scale(dist_m) * scale(ang_rel_ds) , data = join_df4, dist = "poisson")
-summary(zip_model)
-# Zero-Inflated Negative Binomial (ZINB) model
-zinb_model_negbin <- zeroinfl(count ~ scale(dist_m) * scale(ang_rel_ds) | scale(dist_m) * scale(ang_rel_ds), data = join_df4, dist = "negbin")
-summary(zinb_model_negbin)
-# ZIP model with an offset added to the count component
-zip_model_offset_add <- zeroinfl(count ~ scale(dist_m) + scale(ang_rel_ds) + offset(log(p_s2))| scale(dist_m) + scale(ang_rel_ds) , data = join_df4, dist = "poisson")
-summary(zip_model_offset_add)
-# ZIP model with an offset and interaction in predictors
-zip_model_offset_int <- zeroinfl(count ~ scale(dist_m) * scale(ang_rel_ds) + offset(log(p_s2))| scale(dist_m) * scale(ang_rel_ds) , data = join_df4, dist = "poisson")
-summary(zip_model_offset_int)
-AIC(zip_model, zinb_model_negbin, zip_model_offset)
+# library(pscl)
+# # Zero-Inflated Poisson (ZIP) model
+# zip_model <- zeroinfl(count ~ scale(dist_m) * scale(ang_rel_ds) | scale(dist_m) * scale(ang_rel_ds) , data = join_df4, dist = "poisson")
+# summary(zip_model)
+# # Zero-Inflated Negative Binomial (ZINB) model
+# zinb_model_negbin <- zeroinfl(count ~ scale(dist_m) * scale(ang_rel_ds) | scale(dist_m) * scale(ang_rel_ds), data = join_df4, dist = "negbin")
+# summary(zinb_model_negbin)
+# # ZIP model with an offset added to the count component
+# zip_model_offset_add <- zeroinfl(count ~ scale(dist_m) + scale(ang_rel_ds) + offset(log(p_s2))| scale(dist_m) + scale(ang_rel_ds) , data = join_df4, dist = "poisson")
+# summary(zip_model_offset_add)
+# # ZIP model with an offset and interaction in predictors
+# zip_model_offset_int <- zeroinfl(count ~ scale(dist_m) * scale(ang_rel_ds) + offset(log(p_s2))| scale(dist_m) * scale(ang_rel_ds) , data = join_df4, dist = "poisson")
+# summary(zip_model_offset_int)
+# AIC(zip_model, zinb_model_negbin, zip_model_offset)
 
 # Overdispersion
-E2 <- resid(zip_model_offset_int, type = "pearson")
-N  <- nrow(join_df4)
-p  <- length(coef(zip_model_offset_int))  
-sum(E2^2) / (N - p)
+# E2 <- resid(zip_model_offset_int, type = "pearson")
+# N  <- nrow(join_df4)
+# p  <- length(coef(zip_model_offset_int))  
+# sum(E2^2) / (N - p)
 
 
 ## include zeros and imputations
@@ -453,75 +478,75 @@ join_df5 %>% filter(is.na(zero_type)) %>% group_by(genotype.x) %>% summarise(cou
 plot(final_count ~ dist_m, data = join_df5)
 plot(final_count ~ cos_ang, data = join_df5)
 
-#ZINB
-library(glmmTMB)  # Load the package
-mod_zinb <- glmmTMB(final_count ~ dist_m + cos_ang,  # Conditional model predictors for counts
-                    ziformula = ~ suc,                # Zero-inflation component with suc as predictor
-                    family = nbinom2,                 # Negative binomial distribution (accounts for overdispersion)
-                    data = join_df5)                  # Your data containing final_count
-summary(mod_zinb)  # Display model summary
-AIC(mod_zinb)
-plot(mod_zinb)
 
+# zero-inflated models ----------------------------------------------------
 join_df5$weight <- join_df5$sum_count / join_df5$suc  # Define the sampling fraction as a weight
-mod_zinb_weighted <- glmmTMB(final_count ~ dist_m + cos_ang, 
-                             ziformula = ~ suc,
-                             family = nbinom2,
-                             data = join_df5,
-                             weights = weight)
-summary(mod_zinb_weighted)
-AIC(mod_zinb_weighted)
-
-join_df5$weight <- join_df5$sum_count / join_df5$suc  # Define the sampling fraction as a weight
-library(glmmTMB)
-
 join_df5$weight <- ifelse(join_df5$sum_count == join_df5$suc, 
                           1,  # Assign weight of 1 when sum_count == suc
                           join_df5$sum_count / join_df5$suc)  # Otherwise, use the existing formula
 
+plot(join_df5$final_count ~ (join_df5$gen_dist))
+plot(join_df5$final_count ~ (join_df5$total_mean_dia.y))
+plot(join_df5$final_count ~ (join_df5$cos_ang))
 
-#  Zero-Inflated Negative Binomial (ZINB) with suc as predictor in zero-inflation
-mod_zinb_weighted <- glmmTMB(final_count ~ dist_m + cos_ang + total_mean_dia.y, 
-                             ziformula = ~ suc,  # Zero-inflation modeled by suc
-                             family = nbinom2,
-                             data = join_df5,
-                             weights = weight)
-
-mod_zinb_weighted_nodia <- glmmTMB(final_count ~ dist_m + cos_ang, 
-                             ziformula = ~ suc,  # Zero-inflation modeled by suc
-                             family = nbinom2,
-                             data = join_df5,
-                             weights = weight)
-
-#  Zero-Inflated Negative Binomial (ZINB) with only an intercept (no suc in zi component)
-mod_zinb_intercept <- glmmTMB(final_count ~ dist_m + cos_ang + total_mean_dia.y, 
-                              ziformula = ~ 1,  # Zero-inflation component but no predictor
-                              family = nbinom2,
-                              data = join_df5,
-                              weights = weight)
-
-#  Standard Negative Binomial (NB) (No Zero-Inflation)
-mod_nb <- glmmTMB(final_count ~ dist_m + cos_ang + total_mean_dia.y, 
-                  family = nbinom2, 
-                  data = join_df5,
-                  weights = weight)
-summary(mod_nb)
-
-# Compare AIC values
-AIC(mod_zinb_weighted, mod_zinb_intercept, mod_nb, mod_zinb_weighted_nodia)  #mod_nb is best
-
-# Attempted automated model selection
-library(glmmTMB)
-library(MuMIn)  # For model selection
-
-
-global_model <- glmmTMB(final_count ~ dist_m * cos_ang * total_mean_dia.y,  
+#ZINB
+global_model <- glmmTMB(final_count ~ dist_m * cos_ang + total_mean_dia.y + log(gen_dist) + offset(log(suc + 1e-6)) ,  
                         ziformula = ~ suc,  # Include zero-inflation
+                        family = nbinom2,
+                        data = join_df5,
+                        #weights = weight,
+                        na.action = na.fail)  # Ensure NA handling works with MuMIn
+
+summary(global_model)
+
+# Generate new data with dist_m varying and all other predictors held at their mean
+new_data <- data.frame(
+  dist_m = seq(min(join_df5$dist_m), max(join_df5$dist_m), length.out = 100),
+  cos_ang = mean(join_df5$cos_ang, na.rm = TRUE),
+  total_mean_dia.y = mean(join_df5$total_mean_dia.y, na.rm = TRUE),
+  gen_dist = mean(join_df5$gen_dist, na.rm = TRUE),
+  suc = mean(join_df5$suc, na.rm = TRUE),  # Offset term
+  weight = mean(join_df5$weight, na.rm = TRUE)  # Ensure weight is included
+)
+preds <- predict(global_model, newdata = new_data, type = "response", se.fit = TRUE)
+# Store predictions and confidence intervals
+new_data$preds <- preds$fit
+new_data$lower <- preds$fit - 1.96 * preds$se.fit  # 95% CI lower bound
+new_data$upper <- preds$fit + 1.96 * preds$se.fit  # 95% CI upper bound
+
+ggplot() +
+  geom_point(join_df5, mapping = aes(y = final_count, x = dist_m))+
+  geom_line(new_data, mapping = aes(x = dist_m, y = preds )) +
+  geom_ribbon(new_data, mapping = aes(x = dist_m, ymin = lower, ymax = upper),fill = 'blue', alpha = 0.1) +  # Confidence intervals
+  labs(x = "Distance (m)", y = "Final Count") +
+  theme_minimal()
+
+hist(join_df5$final_count)
+
+
+
+
+AIC(global_model)
+dredged_models <- dredge(global_model, rank = "AIC")
+(best_models <- subset(dredged_models, delta < 2))  # Select models within ΔAIC < 2
+#best model is dist_m * cos_ang 
+
+global_model_red <- glmmTMB(final_count ~ dist_m * cos_ang,  
+                            ziformula = ~ suc,  # Include zero-inflation
+                            family = nbinom2,
+                            data = join_df5,
+                            #weights = weight,
+                            na.action = na.fail)  # Ensure NA handling works with MuMIn
+
+summary(global_model_red)
+AIC(global_model_red)
+
+global_model_noinf <- glmmTMB(final_count ~ dist_m * cos_ang + total_mean_dia.y + gen_dist ,  
                         family = nbinom2,
                         data = join_df5,
                         weights = weight,
                         na.action = na.fail)  # Ensure NA handling works with MuMIn
-
+summary(global_model)
 dredged_models <- dredge(global_model, rank = "AIC")
 (best_models <- subset(dredged_models, delta < 2))  # Select models within ΔAIC < 2
 #mod_zinb_weighted_nodia best

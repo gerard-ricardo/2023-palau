@@ -6,13 +6,15 @@ library(ggraph)
 mlg_analysis <- mlg(data_genind_adult)
 print(paste("MLG Analysis:", mlg_analysis, "- clearly incorrect since there are def reps"))
 
+
 # Compare relatedness on single individual vs all
 data_genind_adult@pop <- factor(rep("population1", nrow(data_genind_adult@tab))) # combine all
 genetic_dist_matrix <- gd.smouse(data_genind_adult, verbose = TRUE) # Smouse and Peakall (1999) is a method used to quantify the
 genetic_dist_df <- as.data.frame(as.matrix(genetic_dist_matrix))
 genetic_dist_df <- tibble::rownames_to_column(genetic_dist_df, "Individual1")
 adult_colonies <- pivot_longer(genetic_dist_df, cols = -Individual1, names_to = "Individual2", values_to = "Distance") %>% data.frame()
-adult_colonies_sort <- adult_colonies %>% arrange(Individual1, Distance)
+adult_colonies_sort <- adult_colonies %>% arrange(Individual1, Individual2)
+str(adult_colonies_sort)
 plot(density(adult_colonies_sort$Distance, main = "Genetic Distance Distribution", xlab = "Genetic Distance",
              ylab = "Frequency"))
 # heatmap
@@ -88,6 +90,13 @@ p0 <- ggraph(graph, layout = "fr") +  # fr = Fruchterman-Reingold layout for bet
   geom_node_text(aes(label = name), vjust = 1.5, hjust = 0.5, size = 3) +  # Add labels to nodes
   theme_void()  # 
 p0
+
+#how many groups
+unique_genotypes <- V(graph)$name  # extract unique genotype names
+clusters <- components(graph)  # get connected components
+group_list <- split(V(graph)$name, clusters$membership)  # group genotypes by component
+length(group_list)
+
 
 #  checking high hetero for evidence of contamination
 Hobs <- function(x) {

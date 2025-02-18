@@ -1,5 +1,4 @@
-## following the vcf link (vcf files complex to recreate from given inputs)
-#try using https://rdrr.io/cran/dartR/man/gl2vcf.html
+##DdOCENT FILTERING PLUS ADDED
 
 #aadded some addition following orginal filtering, Jenkins et al 2024, and Premachandra 2019
 
@@ -43,6 +42,12 @@ source("https://raw.githubusercontent.com/gerard-ricardo/data/master/theme_sleek
 # 
 # save(data_gl, file = file.path("./Rdata", "2023_Acro_hyac_gl_dDocent.RData"))
 load("./Rdata/2023_Acro_hyac_gl_dDocent.RData")  #data_gl
+
+#replace '5 with 05 labels
+data_gl_filtered@other$ind.metrics$genotype <- gsub("(?<=_)5(?=$)", "05", data_gl_filtered@other$ind.metrics$genotype,
+                                                    perl = TRUE) # Replace '_5' with '_05'
+data_gl_filtered@ind.names <- gsub("(_5)(?![0-9])", "_05", data_gl_filtered@ind.names, perl = TRUE) # Replace '_5' with '_05' when not followed by a digit
+
 
 # Begin Filtering ------------------------------------------------------------
 
@@ -122,7 +127,17 @@ data_gl_filtered <- gl.filter.hwe(
 # Final Recalculation of Metrics ---------------------------------------------
 
 data_gl_filtered <- gl.recalc.metrics(data_gl_filtered, v = 3)
-#ind = 201     , loci = 1328    
+#ind = 201     , loci = 1328 
+
+#replace '5 with 05 labels
+data_gl_filtered@other$ind.metrics$genotype <- gsub("(?<=_)5(?=$)", "05", data_gl_filtered@other$ind.metrics$genotype,
+                                                    perl = TRUE) # Replace '_5' with '_05'
+data_gl_filtered@ind.names <- gsub("(_5)(?![0-9])", "_05", data_gl_filtered@ind.names, perl = TRUE) # Replace '_5' with '_05' when not followed by a digit
+
+
+# Convert GENIND OBJECT all indiv
+data_genind_pre <- gl2gi(data_gl_filtered)
+
 
 # Filter for adults
 adults_indices <- which(data_gl_filtered@other$ind.metrics$stage == "adults")
@@ -149,3 +164,4 @@ data_genind_adult <- gl2gi(data_gl_filtered_adult)
 # 
 # gl2fasta(data_gl_filtered_blast, method=1, outpath = './data' , outfile='test.fasta',verbose=3)
 # 
+
