@@ -30,7 +30,7 @@ ggplot(heatmap_data, aes(x = Individual1, y = Individual2, fill = Distance)) +
 #reference to single colony
 threshold = 200  #find this manually based on genetic distance of a few individuals
 unique(adult_colonies_sort$Individual1)
-first_group = '1_30_1'
+first_group = '4_30_'
 first_group_data <- adult_colonies_sort %>% filter(Individual1 == first_group) %>%
   mutate(Individual2 = factor(Individual2, levels = Individual2[order(Distance)])) 
 #relatedness per indviduals
