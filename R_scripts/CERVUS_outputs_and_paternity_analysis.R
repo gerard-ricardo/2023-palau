@@ -3,7 +3,7 @@
 ##Proiorites
 #add genetic relatedness between each parent pair inot the glm.
 #filtering sorted but need to rerun (NOTE: '_05' SHOWNG IN SUMMARY_OUT.CSV LEADING TO LOST LARVAE. NEED TO FIX
-
+#try claude 
 
 ## Notes
 # Conflict between dDocent and standard. Need to resolve
