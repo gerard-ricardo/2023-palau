@@ -1,9 +1,8 @@
 ## Cervus outputs
 
 ##Proiorites
-#add genetic relatedness between each parent pair inot the glm.
-#filtering sorted but need to rerun (NOTE: '_05' SHOWNG IN SUMMARY_OUT.CSV LEADING TO LOST LARVAE. NEED TO FIX
-#try claude 
+# I may need to also model just against the centre patch because fert between radial lines complicates which fragment actualy fertilised
+#might need to remove self fert individuals from analysis
 
 ## Notes
 # Conflict between dDocent and standard. Need to resolve
@@ -41,6 +40,7 @@ library(dplyr)
 library(reshape2)
 library(spatstat)
 library(glmmTMB)
+library(MuMIn)
 source("https://raw.githubusercontent.com/gerard-ricardo/data/master/theme_sleek2") # set theme in code
 source("https://raw.githubusercontent.com/gerard-ricardo/data/master/theme_sleek1") # set theme in code
 source("https://raw.githubusercontent.com/gerard-ricardo/data/master/theme_sleek3") # set theme in code
@@ -52,6 +52,7 @@ source("https://raw.githubusercontent.com/gerard-ricardo/data/master/theme_sleek
 #dDocent (make sure '.' between split words
 (data1 <- read.csv(file = file.path("C:/Users/gerar/OneDrive/1_Work/4_Writing/1_Palau genetics mixing/Cervus", 
                                     "summary_out_docent.csv"), check.names = T))
+nrow(data1)
 
 data1$Mother.ID <- sub("_5", "_05", data1$Mother.ID)
 data1$Candidate.father.ID <- sub("_5", "_05", data1$Candidate.father.ID)
@@ -60,6 +61,7 @@ str(data1) # check data type is correc
 data1$offsp_id <- as.factor(as.character(data1$Offspring.ID))
 data1$moth_id <- as.factor(as.character(data1$Mother.ID))
 data1$fath_id <- as.factor(as.character(data1$Candidate.father.ID))
+nrow(data1)
 (data1 <- data1[grep("\\*", data1$Trio.confidence), ]) # Filter rows where 'Trio.confidence' contains '*'
 data2 = data1 %>% dplyr::select(., c(offsp_id, moth_id, fath_id))
 data2 = data2 %>% mutate(id = moth_id)  #mother
@@ -272,43 +274,41 @@ selfing_no = nrow(selfing_id)
 #most of these from individual (5/7) from 7_10. Interesting other fragments didnt have this though. 
 sum(selfing_id$normalised_weight[c(1,3)]) /sum(join_df2$normalised_weight)  #normalised with Adult 7 removed
 
-
-
-## non participants
+## participants
 meta3 <- meta2[complete.cases(meta2), ] # make sure import matches NA type
 part1 = data.frame(id = c(join_df2$moth_id , join_df2$fath_id))  #find parental reps participating
 part2 = left_join(part1, meta, by  = 'id') %>% dplyr::select(genotype ) %>%   distinct(genotype)
-(nrow(part2))  #32 participants
+(nrow(part2))  #31 participants
 
 #participants = data.frame(id = c(unique(join_df2$moth_id), unique(join_df2$fath_id)))
 anti_join(meta3, part2,  by = 'genotype' ) %>%   distinct(genotype) %>% nrow()
-#25 individuals not participating - but this needs to cross check against fert data which may show additional participating mothers (not sequenced)
+#13 individuals not participating - but this needs to cross check against fert data which may show additional participating mothers (not sequenced)
 
 # no. sires and dams
-(distinct_sire = join_df2 %>% distinct(genotype.y) %>% nrow())   #25 sires
-join_df2 %>% distinct(genotype.x) %>% nrow()   #19 sires
+(distinct_sire = join_df2 %>% distinct(genotype.y) %>% nrow())   #22 sires
+join_df2 %>% distinct(genotype.x) %>% nrow()   #18 dams
 
-# mean dams sired
+join_df2 %>% distinct(genotype.x , genotype.y) #49
+
+# mean dams sired per male
 join_df2 %>% group_by(genotype.y) %>%                # Group by genotype.y
   summarise(count = n_distinct(genotype.x)) %>% summarise(mean_count = mean(count))  
-#mean dams fert per sire was 1.72
+#mean dams fert per sire was 2.23
 
 # mean males per dam (small breeding units)
 join_df2 %>% group_by(genotype.x) %>%                # Group by genotype.y
   summarise(count = n_distinct(genotype.y)) %>% summarise(mean_count = mean(count))  
-#mean dams fert per sire was 2.26
+#mean dams fert per sire was 2.72
 #
 # how many distinct dams did top 10% sire
 data3 = join_df2 %>% dplyr::select(genotype.y, genotype.x) %>% distinct() 
-
-order = data3 %>%    # Select relevant columns                      # Remove duplicate rows
-  count(genotype.y) %>%           # Add count of each genotype.y
-  arrange(desc(n))  %>%  dplyr::select(-n)     
-# Arrange by count in descending order
-
-left_join(order, data3)
-#top 3 sires -> 9 of 19 distinct dams = 47.4%. 
-
+order = data3 %>% count(genotype.y) %>% arrange(desc(n))  %>%  dplyr::select(-n)     
+df11 = left_join(order, data3)
+top_sires <- df11 %>% count(genotype.y, sort = TRUE) %>% top_n(3, n) %>% pull(genotype.y) # Extract top 3 sires
+distinct_x_sired_by_top <- df11 %>% filter(genotype.y %in% top_sires) %>% distinct(genotype.x) %>% nrow()
+total_distinct_x <- df11 %>% distinct(genotype.x) %>% nrow()
+percentage_sired_by_top <- (distinct_x_sired_by_top / total_distinct_x) * 100
+percentage_sired_by_top
 
 
 # stats -------------------------------------------------------------------
@@ -331,11 +331,12 @@ join_df3 = left_join(join_df3, meta2_selected_y, by = c("genotype.y"), relations
 #remove c2 and c4 for the moment
 join_df3 <- join_df3[complete.cases(join_df3), ] # make sure import matches NA type
 
-#add on genetic distances
+#add on genetic distances 
 join_df3 = left_join(join_df3, genetic_dist_ave, by = c("genotype.x", "genotype.y"))
 head(join_df3)
-join_df3 %>% filter(count > 0 & gen_dist <200)
-
+#evidence of selfing
+selfs1 = join_df3 %>% filter(count > 0 & gen_dist <200)
+nrow(selfs1) / nrow(join_df2)  *100  #4.62
 
 
 points_x_proj <- st_as_sf(join_df3, coords = c("lon.x", "lat.x"), crs = 4326) %>% st_transform(crs = 32653)
@@ -480,31 +481,87 @@ plot(final_count ~ cos_ang, data = join_df5)
 
 
 # zero-inflated models ----------------------------------------------------
+library(GGally)
+join_df5 %>%  dplyr::select(dist_m, cos_ang, total_mean_dia.y ,(gen_dist)) %>% ggpairs() # Matrix plots of variables. all the combinations of the data
+join_df5$dist_m_c <- scale(join_df5$dist_m, center = TRUE, scale = FALSE) # Center distance
+join_df5$cos_ang_c <- scale(join_df5$cos_ang, center = TRUE, scale = FALSE) # Center angle
+join_df5$gen_dist_inv <- 1 / (join_df5$gen_dist + 1e-6)
+
+
+
+
 join_df5$weight <- join_df5$sum_count / join_df5$suc  # Define the sampling fraction as a weight
 join_df5$weight <- ifelse(join_df5$sum_count == join_df5$suc, 
                           1,  # Assign weight of 1 when sum_count == suc
                           join_df5$sum_count / join_df5$suc)  # Otherwise, use the existing formula
 
-plot(join_df5$final_count ~ (join_df5$gen_dist))
+plot(join_df5$final_count ~ (join_df5$gen_dist_bc))
 plot(join_df5$final_count ~ (join_df5$total_mean_dia.y))
 plot(join_df5$final_count ~ (join_df5$cos_ang))
+plot(join_df5$final_count ~ (join_df5$gen_dist_inv))
+
+#box-Cox
+join_df5$final_count_shifted <- join_df5$final_count + 0.1  # Shift response to be positive
+bc <- boxcox(lm(final_count_shifted ~ gen_dist_adj, data = join_df5), lambda = seq(-2, 2, by = 0.1))
+best_lambda <- bc$x[which.max(bc$y)]
+print(best_lambda)
+if (best_lambda == 0) {
+  join_df5$gen_dist_bc <- log(join_df5$gen_dist_adj)  # Log transform
+} else {
+  join_df5$gen_dist_bc <- (join_df5$gen_dist_adj^best_lambda - 1) / best_lambda  # Box-Cox
+}
+
+
 
 #ZINB
-global_model <- glmmTMB(final_count ~ dist_m * cos_ang + total_mean_dia.y + log(gen_dist) + offset(log(suc + 1e-6)) ,  
+global_model <- glmmTMB(final_count ~ dist_m_c  * cos_ang_c + total_mean_dia.y + log(gen_dist) + offset(log(suc + 1e-6)) ,  
                         ziformula = ~ suc,  # Include zero-inflation
                         family = nbinom2,
                         data = join_df5,
                         #weights = weight,
                         na.action = na.fail)  # Ensure NA handling works with MuMIn
 
+global_model_1 <- glmmTMB(final_count ~ dist_m_c  * cos_ang_c + total_mean_dia.y + gen_dist + offset(log(suc + 1e-6)) ,  
+                        ziformula = ~ 1,  # Include zero-inflation
+                        family = nbinom2,
+                        data = join_df5,
+                        #weights = weight,
+                        na.action = na.fail)  # Ensure NA handling works with MuMIn
+
+global_model_nozero <- glmmTMB(final_count ~ dist_m_c  * cos_ang_c + total_mean_dia.y + gen_dist + offset(log(suc + 1e-6)) ,  
+                        #ziformula = ~ 1,  # Include zero-inflation
+                        family = nbinom2,
+                        data = join_df5,
+                        #weights = weight,
+                        na.action = na.fail)  # Ensure NA handling works with MuMIn
+
+AIC(global_model, global_model_1, global_model_nozero)
+
 summary(global_model)
+
+check_collinearity(global_model)
+
+
+#test
+# global_model <- glmmTMB(final_count ~ dist_m_c  + cos_ang_c  + poly(gen_dist,1) + offset(log(suc + 1e-6)) ,  
+#                         ziformula = ~ suc,  # Include zero-inflation
+#                         family = nbinom2,
+#                         data = join_df5,
+#                         #weights = weight,
+#                         na.action = na.fail)  # Ensure NA handling works with MuMIn
+summary(global_model)
+
+AIC(global_model)
+
+join_df5 %>% dplyr::select(final_count, gen_dist)
+
 
 # Generate new data with dist_m varying and all other predictors held at their mean
 new_data <- data.frame(
-  dist_m = seq(min(join_df5$dist_m), max(join_df5$dist_m), length.out = 100),
-  cos_ang = mean(join_df5$cos_ang, na.rm = TRUE),
+  gen_dist = seq(min(join_df5$gen_dist), max(join_df5$gen_dist), length.out = 100),
+  cos_ang_c = mean(join_df5$cos_ang_c, na.rm = TRUE),
   total_mean_dia.y = mean(join_df5$total_mean_dia.y, na.rm = TRUE),
-  gen_dist = mean(join_df5$gen_dist, na.rm = TRUE),
+  dist_m_c = mean(join_df5$dist_m_c, na.rm = TRUE),
   suc = mean(join_df5$suc, na.rm = TRUE),  # Offset term
   weight = mean(join_df5$weight, na.rm = TRUE)  # Ensure weight is included
 )
@@ -515,41 +572,44 @@ new_data$lower <- preds$fit - 1.96 * preds$se.fit  # 95% CI lower bound
 new_data$upper <- preds$fit + 1.96 * preds$se.fit  # 95% CI upper bound
 
 ggplot() +
-  geom_point(join_df5, mapping = aes(y = final_count, x = dist_m))+
-  geom_line(new_data, mapping = aes(x = dist_m, y = preds )) +
-  geom_ribbon(new_data, mapping = aes(x = dist_m, ymin = lower, ymax = upper),fill = 'blue', alpha = 0.1) +  # Confidence intervals
+  geom_point(join_df5, mapping = aes(y = final_count, x = gen_dist))+
+  geom_line(new_data, mapping = aes(x = gen_dist, y = preds )) +
+  geom_ribbon(new_data, mapping = aes(x = gen_dist, ymin = lower, ymax = upper),fill = 'blue', alpha = 0.1) +  # Confidence intervals
   labs(x = "Distance (m)", y = "Final Count") +
   theme_minimal()
 
 hist(join_df5$final_count)
 
-
-
-
 AIC(global_model)
-dredged_models <- dredge(global_model, rank = "AIC")
+dredged_models <- dredge(global_model, rank = "AIC", fixed = ~cond(offset(log(suc + 1e-6))))
 (best_models <- subset(dredged_models, delta < 2))  # Select models within ΔAIC < 2
+
+
+#model averaging (not working because top 4 cant be extracted)
+extract_models <- get.models(dredged_models, subset = delta < 2)
+best = extract_models[1:3] #manually extract best 4
+model_avg <- model.avg(best, revised.var = TRUE)  # Model averaging across them
+summary(model_avg)
+
+
 #best model is dist_m * cos_ang 
 
-global_model_red <- glmmTMB(final_count ~ dist_m * cos_ang,  
+global_model_reduced <- glmmTMB(final_count ~ dist_m_c  * cos_ang_c   + offset(log(suc + 1e-6)) ,  
                             ziformula = ~ suc,  # Include zero-inflation
                             family = nbinom2,
                             data = join_df5,
                             #weights = weight,
                             na.action = na.fail)  # Ensure NA handling works with MuMIn
 
-summary(global_model_red)
-AIC(global_model_red)
+global_model_red_add <- glmmTMB(final_count ~ dist_m_c  + cos_ang_c   + offset(log(suc + 1e-6)) ,  
+                                ziformula = ~ suc,  # Include zero-inflation
+                                family = nbinom2,
+                                data = join_df5,
+                                #weights = weight,
+                                na.action = na.fail)  # Ensure NA handling works with MuMIn
 
-global_model_noinf <- glmmTMB(final_count ~ dist_m * cos_ang + total_mean_dia.y + gen_dist ,  
-                        family = nbinom2,
-                        data = join_df5,
-                        weights = weight,
-                        na.action = na.fail)  # Ensure NA handling works with MuMIn
-summary(global_model)
-dredged_models <- dredge(global_model, rank = "AIC")
-(best_models <- subset(dredged_models, delta < 2))  # Select models within ΔAIC < 2
-#mod_zinb_weighted_nodia best
+summary(global_model_red_add)
+AIC(global_model_reduced, global_model_red_add)  #choose simpler because with 2 delta
 
 
 
@@ -565,9 +625,9 @@ check_zeroinflation(mod_zinb_weighted_nodia)
 check_singularity(mod_zinb)
 check_model(mod_nb)
 library(DHARMa)
-sim_res <- simulateResiduals(mod_zinb_weighted_nodia)
+sim_res <- simulateResiduals(global_model)
 plot(sim_res)
-check_outliers(mod_zinb_weighted_nodia)
+check_outliers(global_model)
 
 # #remove missing and structural
 # join_df4 <- join_df4 %>%

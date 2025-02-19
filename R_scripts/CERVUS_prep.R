@@ -272,6 +272,7 @@ df1a = df2_lar %>% select(., id, genotype )
 # Assuming df2_adult is your dataframe with columns 'genotype' and 'id'
 
 # Extract the first replicate for each genotype
+df2_adult$id
 known_dam <- df2_adult %>%
   group_by(genotype) %>%
   slice(1) %>%
@@ -340,5 +341,7 @@ offspring_df
 # write.csv(offspring_df1, row.names = FALSE, file = file.path("C:/Users/gerar/OneDrive/1 Work/3 Results/11 Allee effects/3 field experiments/2022_12 Heron/genetics/Cervus", "offspring_platy1.csv"))
 # write.csv(offspring_df2, row.names = FALSE, file = file.path("C:/Users/gerar/OneDrive/1 Work/3 Results/11 Allee effects/3 field experiments/2022_12 Heron/genetics/Cervus", "offspring_platy2.csv"))
 
-write.csv(offspring_df, row.names = FALSE, file = file.path("C:/Users/gerar/OneDrive/1_Work/4_Writing/1_Allee_effects/4 Palau genetics mixing/Cervus", "offspring_a_hyac.csv"))
+write.csv(offspring_df, row.names = FALSE, 
+          file = file.path("C:/Users/gerar/OneDrive/1_Work/4_Writing/1_Palau genetics mixing/Cervus", 
+                           "offspring_a_hyac.csv"))
 

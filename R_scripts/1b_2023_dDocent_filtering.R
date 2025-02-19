@@ -43,17 +43,27 @@ source("https://raw.githubusercontent.com/gerard-ricardo/data/master/theme_sleek
 # save(data_gl, file = file.path("./Rdata", "2023_Acro_hyac_gl_dDocent.RData"))
 load("./Rdata/2023_Acro_hyac_gl_dDocent.RData")  #data_gl
 
-#replace '5 with 05 labels
-data_gl_filtered@other$ind.metrics$genotype <- gsub("(?<=_)5(?=$)", "05", data_gl_filtered@other$ind.metrics$genotype,
-                                                    perl = TRUE) # Replace '_5' with '_05'
-data_gl_filtered@ind.names <- gsub("(_5)(?![0-9])", "_05", data_gl_filtered@ind.names, perl = TRUE) # Replace '_5' with '_05' when not followed by a digit
 
 
-# Begin Filtering ------------------------------------------------------------
+# Fix labels ------------------------------------------------------------
 
 # Create a filtered object from raw data
 data_gl_filtered <- data_gl
 # Initial dataset: 217 individuals, 50405 loci
+
+#replace '5 with 05 labels
+data_gl_filtered@other$ind.metrics$genotype <- gsub("(?<=_)5(?=$)", "05", data_gl_filtered@other$ind.metrics$genotype,
+                                                    perl = TRUE) # Replace '_5' with '_05'
+
+data_gl_filtered@other$ind.metrics$id <- gsub("(_5)(?![0-9])", "_05", data_gl_filtered@other$ind.metrics$id, perl = TRUE) 
+
+data_gl_filtered@ind.names <- gsub("(_5)(?![0-9])", "_05", data_gl_filtered@ind.names, perl = TRUE) # Replace '_5' with '_05' when not followed by a digit
+
+tail(data_gl_filtered@other$ind.metrics, 10)
+
+
+# Filter ------------------------------------------------------------------
+
 
 # Step 1: Remove Individuals with High Missing Data --------------------------
 ind_before <- indNames(data_gl_filtered)
