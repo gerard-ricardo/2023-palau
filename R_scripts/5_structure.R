@@ -31,10 +31,10 @@ struct_adult = gl.run.structure(data_gl_adult_unique, verbose = 3, burnin = 2000
                                 seed = 1, noadmix=FALSE, exec = "C:/Users/gerar/OneDrive/Documents/structure/structure.exe")
 toc() 
 #No admixture
-tic("Running structure analysis") # start the timer with a message
-struct_adult = gl.run.structure(data_gl_adult_unique, verbose = 3, burnin = 2000, numreps = 4000, k.range = 1:5, num.k.rep = 2, 
-                                seed = 1, noadmix=TRUE, exec = "C:/Users/gerar/OneDrive/Documents/structure/structure.exe")
-toc() 
+# tic("Running structure analysis") # start the timer with a message
+# struct_adult = gl.run.structure(data_gl_adult_unique, verbose = 3, burnin = 2000, numreps = 4000, k.range = 1:5, num.k.rep = 2, 
+#                                 seed = 1, noadmix=TRUE, exec = "C:/Users/gerar/OneDrive/Documents/structure/structure.exe")
+# toc() 
 
 #46 min burnin = 2000, numreps = 4000, k.range = 1:5, num.k.rep = 2
 #save(struct_adult, file = file.path("./Rdata", "struct_adult_test.RData"))
@@ -48,10 +48,10 @@ toc()
 # toc() # End the timer (170.7 sec   = is slower)
 
 # formal run
-# tic("Running structure analysis") # 
-# struct_adult = gl.run.structure(data_gl_filtered_adult, verbose = 3, burnin = 8000, numreps = 20000, k.range = 2:4, num.k.rep = 2, 
-#                                 seed = 1, noadmix = FALSE, exec = "C:/Users/gerar/OneDrive/Documents/structure/structure.exe")
-# toc() 
+tic("Running structure analysis") #
+struct_adult = gl.run.structure(data_gl_adult_unique, verbose = 3, burnin = 8000, numreps = 20000, k.range = 2:4, num.k.rep = 2,
+                                seed = 1, noadmix = FALSE, exec = "C:/Users/gerar/OneDrive/Documents/structure/structure.exe")
+toc()
 #seems to work for k.range = 2:4, num.k.rep = 2 (but not other settings)
 #save(struct_adult, file = file.path("./Rdata", "struct_adult_1_10.RData"))
 load("./Rdata/struct_adult_test.RData")
