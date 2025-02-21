@@ -6,9 +6,20 @@
 # - seems like you need min K = 1:(K+1) and num.k.rep = 2 to get delta K. So run across 1 higher and lower than you think K is. 
 
 
-# load libraries ----------------------------------------------------------
-
-
+# data wrangling ----------------------------------------------------------
+# data_gl_adult_unique <- gl.recalc.metrics(data_gl_adult_unique, v = 3)
+# data_gl_adult_unique@other$ind.metrics
+# data_gl_adult_unique$pop
+# dim(data_gl_adult_unique) # Should return (42, 1340)
+# length(indNames(data_gl_adult_unique))  # Should return 21
+# colnames(as.matrix(data_gl_adult_unique))  # List all loci names
+# length(colnames(as.matrix(data_gl_adult_unique)))  # Count number of loci
+# indNames(data_gl_adult_unique)  # List all individuals
+# length(indNames(data_gl_adult_unique))  # Count number of individuals
+# table(is.na(pop(data_gl_adult_unique)))  # Count how many individuals have NA populations
+# indNames(data_gl_adult_unique)[is.na(pop(data_gl_adult_unique))]  # List individuals with missing population data
+# 
+# 
 
 
 
@@ -16,9 +27,15 @@
 
 #test run
 tic("Running structure analysis") # start the timer with a message
-struct_adult = gl.run.structure(data_gl_filtered_adult, verbose = 3, burnin = 2000, numreps = 4000, k.range = 1:5, num.k.rep = 2, 
+struct_adult = gl.run.structure(data_gl_adult_unique, verbose = 3, burnin = 2000, numreps = 4000, k.range = 1:5, num.k.rep = 2, 
                                 seed = 1, noadmix=FALSE, exec = "C:/Users/gerar/OneDrive/Documents/structure/structure.exe")
 toc() 
+#No admixture
+tic("Running structure analysis") # start the timer with a message
+struct_adult = gl.run.structure(data_gl_adult_unique, verbose = 3, burnin = 2000, numreps = 4000, k.range = 1:5, num.k.rep = 2, 
+                                seed = 1, noadmix=TRUE, exec = "C:/Users/gerar/OneDrive/Documents/structure/structure.exe")
+toc() 
+
 #46 min burnin = 2000, numreps = 4000, k.range = 1:5, num.k.rep = 2
 #save(struct_adult, file = file.path("./Rdata", "struct_adult_test.RData"))
 
@@ -42,7 +59,15 @@ load("./Rdata/struct_adult_test.RData")
 str(struct_adult)
 ev <- gl.evanno(struct_adult, plot.out = TRUE)
 #high delta K is best K 
+gl.evanno(struct_adult) # Get Evanno's table with likelihood values
 
+
+#Deviation from Hardy-Windberg
+data_gl_adult_unique1 = data_gl_adult_unique
+pop(data_gl_adult_unique1) <- factor(rep("MergedPop", length(indNames(data_gl_adult_unique1))))
+gl.report.hwe(data_gl_adult_unique1)
+gl.filter.hwe(data_gl_adult_unique1, alpha = 0.05, mult.comp.adj = TRUE, mult.comp.adj.method = "fdr")
+#no deviation after multiple comaprisons
 
 #ev <- gl.evanno(struct_all, plot.out = TRUE)
 

@@ -69,7 +69,7 @@ tail(data_gl_filtered@other$ind.metrics, 10)
 ind_before <- indNames(data_gl_filtered)
 data_gl_filtered <- gl.filter.callrate(data_gl_filtered, method = "ind", threshold = 0.5, v = 3)
 ind_after <- indNames(data_gl_filtered)
-removed_individuals <- setdiff(ind_before, ind_after)
+(removed_individuals <- setdiff(ind_before, ind_after))
 # After filtering: 201 individuals, 50405 loci
 
 # Step 2: Remove Loci with High Missing Data ---------------------------------

@@ -123,10 +123,10 @@ data_gl_filtered_adult
 #81 gentopyes
 
 ## temporarily remove missing genotypes
-# Filter out individuals with missing genotype2
-valid_indices <- !is.na(data_gl_filtered_adult@other$ind.metrics$genotype2)
-data_gl_filtered_adult <- data_gl_filtered_adult[valid_indices, ] # Keep only valid rows
-data_gl_filtered_adult@pop <- as.factor(data_gl_filtered_adult@other$ind.metrics$genotype2[valid_indices]) # Assign genotype2 as factor to pop
+# # Filter out individuals with missing genotype2
+# valid_indices <- !is.na(data_gl_filtered_adult@other$ind.metrics$genotype2)
+# data_gl_filtered_adult <- data_gl_filtered_adult[valid_indices, ] # Keep only valid rows
+# data_gl_filtered_adult@pop <- as.factor(data_gl_filtered_adult@other$ind.metrics$genotype2[valid_indices]) # Assign genotype2 as factor to pop
 
 
 

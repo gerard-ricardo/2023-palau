@@ -23,6 +23,16 @@ pca_complete <- data.frame(pca$li, pop = data_gl_adult_unique$pop) # Combine PCA
 #use for adults
 #pca_complete <- data.frame(pca$li) # Combine PCA results with population data
 
+
+#sig test groups
+library(vegan)
+set.seed(123)
+kmeans_result <- kmeans(pca_data, centers = 2, nstart = 25) # Change centers if needed
+metadata <- data.frame(sample_id = rownames(pca_data), group = as.factor(kmeans_result$cluster))
+permanova_result <- adonis2(dist_matrix ~ group, data = metadata, permutations = 999)
+print(permanova_result)
+#signifcant but only 6% explained indicating weak structue
+
 # Explained variance
 (explained_variance <- pca$eig / sum(pca$eig) * 100)
 scree_plot <- data.frame(PC = 1:length(explained_variance), Variance = explained_variance)
@@ -42,7 +52,14 @@ set.seed(123) # for reproducibility
 
 # K-means clustering
 set.seed(123) # for reproducibility
-kmeans_result <- kmeans(pca_data, centers = 2, nstart = 25)
+wss <- sapply(1:10, function(k) kmeans(pca_data, centers = k, nstart = 25)$tot.withinss)
+plot(1:10, wss, type = "b", pch = 19, frame = FALSE, xlab = "Number of Clusters", ylab = "Total Within-Cluster Sum of Squares")
+library(cluster)
+sil_scores <- sapply(2:10, function(k) mean(silhouette(kmeans(pca_data, centers = k, nstart = 25)$cluster, dist(pca_data))[, 3]))
+plot(2:10, sil_scores, type = "b", pch = 19, frame = FALSE, xlab = "Number of Clusters", ylab = "Average Silhouette Score")
+
+
+kmeans_result <- kmeans(pca_data, centers = 1, nstart = 25)
 individuals_in_cluster3 <- which(kmeans_result$cluster == 3) #find indiv in each cluster
 silhouette_score <- silhouette(kmeans_result$cluster, dist(pca_data))
 summary(silhouette_score)
@@ -150,7 +167,7 @@ t2 <- ggplot(pca_complete2, aes(x = Axis1, y = Axis2)) +
   geom_text_repel(aes(label = pop), color = "grey50", size = 3, max.overlaps = 105, point.padding = 0.5, box.padding = 0.5) +
   scale_fill_manual(values = scales::alpha(my_palette, 0.1)) + # Adjust alpha for fill colours
   scale_color_manual(values = my_palette) + # Apply updated palette
-  stat_ellipse(aes(x = Axis1, y = Axis2, group = kmeans_cluster, color = factor(kmeans_cluster)), level = 0.95, linetype = 2, size = 1) +
+  #stat_ellipse(aes(x = Axis1, y = Axis2, group = kmeans_cluster, color = factor(kmeans_cluster)), level = 0.95, linetype = 2, size = 1) +
   theme_sleek2() +
   labs(
     x = paste0("PCA1 (", round(explained_variance[1], 2), "%)"),
