@@ -5,6 +5,7 @@
 #might need to remove self fert individuals from analysis
 
 ## Notes
+# apparently C13 is a hugh colony
 # Conflict between dDocent and standard. Need to resolve
 #Check:Double check sum_count (all larvae) not greater than suc
 #INCLUDING ZEROS
@@ -959,7 +960,7 @@ image_write(gif, path = "./plots/compiled_maps_docent.gif")
 
 #==========================================================================================================
 #mum = x, sire = y
-join_df3 = join_df2 %>% dplyr::select(genotype.x, genotype.y, dist_m, prop) %>%  drop_na()
+#join_df3 = join_df2 %>% dplyr::select(genotype.x, genotype.y, dist_m, prop) %>%  drop_na()
 
 # Calculate counts of distinct crosses for each genotype.y
 cross_counts <- join_df3 %>%
@@ -1110,9 +1111,18 @@ arranged_plots <- grid.arrange(
 
  
 # network sankey ----------------------------------------------------------
+# Calculate counts of distinct crosses for each genotype.y
+cross_counts1 <- df_pos_only %>%
+  group_by(genotype.y) %>%
+  summarise(distinct_crosses = n_distinct(genotype.x)) %>%
+  arrange(desc(distinct_crosses))  %>%  data.frame()
+
+df_pos_only1 <- df_pos_only %>%
+  left_join(cross_counts1, by = "genotype.y") %>%
+  arrange(desc(distinct_crosses), genotype.y)
 
 # Find counts of pairs
-links <- join_df3 %>%
+links <- df_pos_only1 %>%
   dplyr::select(genotype.x, genotype.y) %>%
   count(genotype.x, genotype.y) %>%
   mutate(source = paste0(genotype.y, "_sire"),  # Add '_sire' to genotype.y (left side)
@@ -1121,7 +1131,7 @@ links <- join_df3 %>%
   arrange(desc(n), target)
 
 # The unique node names ordered by distinct_crosses for sources (sire nodes)
-sources_ordered <- cross_counts %>%
+sources_ordered <- cross_counts1 %>%
   mutate(source = paste0(genotype.y, "_sire")) %>%
   arrange(desc(distinct_crosses)) %>%
   pull(source)

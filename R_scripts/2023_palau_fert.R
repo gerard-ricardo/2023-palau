@@ -86,6 +86,9 @@ with(data1, mean(prop, na.rm = T))  #unweighted
 (wei_mean_prop_rad <- sum(radial_indiv$prop * radial_indiv$tot, na.rm = TRUE) / sum(radial_indiv$tot, na.rm = TRUE))  #spokes
 
 
+plot(radial_indiv$prop ~ radial_indiv$dist)
+plot(radial_indiv$prop ~ radial_indiv$deg)
+
 # Modelling ------------------------------------------------------------
 
 ## glmm

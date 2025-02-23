@@ -34,7 +34,12 @@ data1 <- data1 %>% group_by(ID) %>% summarise(total_mean_dia = sum(mean_dia, na.
 #save(data1, file = file.path("./Rdata", "col_sizes_exp.RData"))
 
 mean(data1$total_mean_dia)
+sd(data1$total_mean_dia)
 median(data1$total_mean_dia)
+
+quantile(data1$total_mean_dia)
+min(data1$total_mean_dia)
+
 
 #centre
 data2 = data1[grep("c", data1$ID),]   
@@ -83,4 +88,20 @@ p1 <- ggplot(combined_data, aes(x = total_mean_dia, fill = group, color = group)
   theme_sleek3()+
   theme(legend.position = c(0.9, 0.9), legend.text = element_text(size = rel(1), colour = "grey20"))
 p1
+
+
+#mean plot
+
+# Means plot with raw data points and confidence intervals
+p2 <- ggplot(combined_data, aes(x = group, y = total_mean_dia, color = group)) +
+  geom_jitter(width = 0.2, alpha = 0.5, size = 2) +  # Raw data points with slight jitter for visibility
+  stat_summary(fun = mean, geom = "point", size = 4, shape = 18) +  # Mean point
+  stat_summary(fun.data = mean_cl_boot, geom = "errorbar", width = 0.2, size = 0.8) +  # Confidence interval bars
+  scale_y_continuous(name = "Mean Colony Diameter (cm)") +
+  scale_x_discrete(name = "Group") +
+  scale_color_manual(values = cols) +
+  theme_sleek3() +
+  theme(legend.position = "none")  # Remove legend if color is redundant
+
+p2
 
