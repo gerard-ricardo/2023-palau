@@ -337,7 +337,7 @@ join_df3 = left_join(join_df3, genetic_dist_ave, by = c("genotype.x", "genotype.
 head(join_df3)
 #evidence of selfing
 selfs1 = join_df3 %>% filter(count > 0 & gen_dist <200)
-nrow(selfs1) / nrow(join_df2)  *100  #4.62
+nrow(selfs1) / nrow(join_df2)  * 100  #4.62
 
 
 points_x_proj <- st_as_sf(join_df3, coords = c("lon.x", "lat.x"), crs = 4326) %>% st_transform(crs = 32653)
@@ -482,13 +482,17 @@ plot(final_count ~ cos_ang, data = join_df5)
 
 
 # zero-inflated models ----------------------------------------------------
+#Note: removed selfing combinations
+
+str(join_df5)
+join_df5 = join_df5 %>% filter(gen_dist > 200)  #remove slefing combinations
+
+
 library(GGally)
 join_df5 %>%  dplyr::select(dist_m, cos_ang, total_mean_dia.y ,(gen_dist)) %>% ggpairs() # Matrix plots of variables. all the combinations of the data
 join_df5$dist_m_c <- scale(join_df5$dist_m, center = TRUE, scale = FALSE) # Center distance
 join_df5$cos_ang_c <- scale(join_df5$cos_ang, center = TRUE, scale = FALSE) # Center angle
-join_df5$gen_dist_inv <- 1 / (join_df5$gen_dist + 1e-6)
-
-
+join_df5$gen_dist_log <- log(join_df5$gen_dist)
 
 
 join_df5$weight <- join_df5$sum_count / join_df5$suc  # Define the sampling fraction as a weight
@@ -496,10 +500,10 @@ join_df5$weight <- ifelse(join_df5$sum_count == join_df5$suc,
                           1,  # Assign weight of 1 when sum_count == suc
                           join_df5$sum_count / join_df5$suc)  # Otherwise, use the existing formula
 
-plot(join_df5$final_count ~ (join_df5$gen_dist_bc))
 plot(join_df5$final_count ~ (join_df5$total_mean_dia.y))
 plot(join_df5$final_count ~ (join_df5$cos_ang))
-plot(join_df5$final_count ~ (join_df5$gen_dist_inv))
+plot(join_df5$final_count ~ (join_df5$gen_dist))
+plot(join_df5$final_count ~ (join_df5$gen_dist_log))  #made it worse
 
 #box-Cox
 join_df5$final_count_shifted <- join_df5$final_count + 0.1  # Shift response to be positive
@@ -515,21 +519,21 @@ if (best_lambda == 0) {
 
 
 #ZINB
-global_model <- glmmTMB(final_count ~ dist_m_c  * cos_ang_c + total_mean_dia.y + log(gen_dist) + offset(log(suc + 1e-6)) ,  
+global_model <- glmmTMB(final_count ~ dist_m_c  * cos_ang_c + total_mean_dia.y + poly(gen_dist, 2) + offset(log(suc + 1e-6)) ,  
                         ziformula = ~ suc,  # Include zero-inflation
                         family = nbinom2,
                         data = join_df5,
                         #weights = weight,
                         na.action = na.fail)  # Ensure NA handling works with MuMIn
 
-global_model_1 <- glmmTMB(final_count ~ dist_m_c  * cos_ang_c + total_mean_dia.y + gen_dist + offset(log(suc + 1e-6)) ,  
+global_model_1 <- glmmTMB(final_count ~ dist_m_c  * cos_ang_c + total_mean_dia.y + poly(gen_dist, 2) + offset(log(suc + 1e-6)) ,  
                         ziformula = ~ 1,  # Include zero-inflation
                         family = nbinom2,
                         data = join_df5,
                         #weights = weight,
                         na.action = na.fail)  # Ensure NA handling works with MuMIn
 
-global_model_nozero <- glmmTMB(final_count ~ dist_m_c  * cos_ang_c + total_mean_dia.y + gen_dist + offset(log(suc + 1e-6)) ,  
+global_model_nozero <- glmmTMB(final_count ~ dist_m_c  * cos_ang_c + total_mean_dia.y + poly(gen_dist, 2) + offset(log(suc + 1e-6)) ,  
                         #ziformula = ~ 1,  # Include zero-inflation
                         family = nbinom2,
                         data = join_df5,
@@ -540,7 +544,7 @@ AIC(global_model, global_model_1, global_model_nozero)
 
 summary(global_model)
 
-check_collinearity(global_model)
+performance::check_collinearity(global_model)
 
 
 #test
@@ -595,14 +599,14 @@ summary(model_avg)
 
 #best model is dist_m * cos_ang 
 
-global_model_reduced <- glmmTMB(final_count ~ dist_m_c  * cos_ang_c   + offset(log(suc + 1e-6)) ,  
-                            ziformula = ~ suc,  # Include zero-inflation
-                            family = nbinom2,
-                            data = join_df5,
-                            #weights = weight,
-                            na.action = na.fail)  # Ensure NA handling works with MuMIn
+# global_model_reduced <- glmmTMB(final_count ~ dist_m_c  * cos_ang_c   + offset(log(suc + 1e-6)) ,  
+#                             ziformula = ~ suc,  # Include zero-inflation
+#                             family = nbinom2,
+#                             data = join_df5,
+#                             #weights = weight,
+#                             na.action = na.fail)  # Ensure NA handling works with MuMIn
 
-global_model_red_add <- glmmTMB(final_count ~ dist_m_c  + cos_ang_c   + offset(log(suc + 1e-6)) ,  
+global_model_red_add <- glmmTMB(final_count ~ dist_m_c  + cos_ang_c   + poly(gen_dist,2) + offset(log(suc + 1e-6)) ,  
                                 ziformula = ~ suc,  # Include zero-inflation
                                 family = nbinom2,
                                 data = join_df5,
@@ -626,54 +630,134 @@ check_zeroinflation(mod_zinb_weighted_nodia)
 check_singularity(mod_zinb)
 check_model(mod_nb)
 library(DHARMa)
-sim_res <- simulateResiduals(global_model)
+sim_res <- simulateResiduals(global_model_red_add)
+testOutliers(sim_res, type = "bootstrap") #double checkoutliers
 plot(sim_res)
-check_outliers(global_model)
 
 # #remove missing and structural
 # join_df4 <- join_df4 %>%
 #   filter(!(zero_type %in% c("structural_zero", "missing_zero"))) # Keep only rows that are true_zero or positive_count
-# 
 
-# imputation --------------------------------------------------------------
-## attempting imputation
-# Ensure `count` is numeric
-join_df5$count <- as.numeric(join_df5$count)
-# Only replace `count` with NA if it's a missing zero
-join_df5$count[join_df5$zero_type == "missing_zero"] <- NA
-# Check that only missing_zero values are NA
-table(join_df5$zero_type, is.na(join_df5$count))
-library(mice)
-meth <- make.method(join_df5)
-
-meth["count"] <- "rf"  # select method for imputatins
-imputed_data <- mice(join_df5, method = meth, m = 5, seed = 123)
-summary(imputed_data)
-# Extract first imputed dataset
-imputed_df <- complete(imputed_data, 1) # First imputed dataset
-# Check if `structural_zero` or `true_zero` values were changed (they should NOT be!)
-table(imputed_df$zero_type, is.na(imputed_df$count))
-# Compare before and after imputation
-table(join_df5$zero_type)
-table(imputed_df$count)
-table(join_df5$zero_type, imputed_df$count)
 library(ggplot2)
-ggplot(imputed_df, aes(x = count, fill = zero_type)) + geom_bar(position = "dodge") +
-  theme_minimal() + labs(title = "Distribution of Imputed vs. Observed Counts",
-       x = "Count (Number of Eggs)",
-       y = "Frequency",
-       fill = "Zero Type")
+library(effects)
 
-# Fit negative binomial model on each imputed dataset
-nb_models <- with(imputed_data, glm.nb(count ~ dist_m + ang_rel_ds, data = join_df5))
-summary(nb_models)
-pooled_nb_model <- pool(nb_models)
-summary(pooled_nb_model)
+# Plot effects
+plot(allEffects(global_model_red_add))
 
-#exclude structural
-model_data <- subset(imputed_df, zero_type != "structural_zero")
-nb_models <- with(model_data, glm.nb(count ~ dist_m + ang_rel_ds, data = model_data))
-summary(nb_models)
+# First, create prediction grid
+# Get ranges and means of your predictors
+pred_data <- with(join_df5, {
+  # Create sequences for each predictor
+  dist_seq <- seq(min(dist_m_c), max(dist_m_c), length.out = 100)
+  ang_seq <- seq(min(cos_ang_c), max(cos_ang_c), length.out = 100)
+  gen_seq <- seq(min(gen_dist), max(gen_dist), length.out = 100)
+  
+  # Create three separate prediction data frames, one for each effect
+  # Each holds other variables at their means
+  dist_grid <- expand.grid(
+    dist_m_c = dist_seq,
+    cos_ang_c = mean(cos_ang_c),
+    gen_dist = mean(gen_dist),
+    suc = mean(suc)
+  )
+  
+  ang_grid <- expand.grid(
+    dist_m_c = mean(dist_m_c),
+    cos_ang_c = ang_seq,
+    gen_dist = mean(gen_dist),
+    suc = mean(suc)
+  )
+  
+  gen_grid <- expand.grid(
+    dist_m_c = mean(dist_m_c),
+    cos_ang_c = mean(cos_ang_c),
+    gen_dist = gen_seq,
+    suc = mean(suc)
+  )
+  
+  list(dist = dist_grid, ang = ang_grid, gen = gen_grid)
+})
+
+# Get predictions with confidence intervals
+get_predictions <- function(newdata, model) {
+  pred <- predict(model, newdata = newdata, type = "link", se.fit = TRUE)
+  # Transform predictions back to response scale (using inverse link function)
+  fit <- exp(pred$fit)
+  upr <- exp(pred$fit + 1.96 * pred$se.fit)
+  lwr <- exp(pred$fit - 1.96 * pred$se.fit)
+  data.frame(fit = fit, lwr = lwr, upr = upr)
+}
+
+# Get predictions for each effect
+dist_pred <- cbind(pred_data$dist, get_predictions(pred_data$dist, global_model_red_add))
+ang_pred <- cbind(pred_data$ang, get_predictions(pred_data$ang, global_model_red_add))
+gen_pred <- cbind(pred_data$gen, get_predictions(pred_data$gen, global_model_red_add))
+
+# Create plots
+library(ggplot2)
+
+# Distance effect plot
+p1 <- p1 + 
+  labs(title = "A") +
+  theme(plot.title = element_text(face = "bold", size = 16, hjust = -0.1))
+
+#Angle
+p2 <- p2 + 
+  labs(title = "B") +
+  theme(plot.title = element_text(face = "bold", size = 16, hjust = -0.1))
+#Genetic dist
+p3 <- p3 + 
+  labs(title = "C") +
+  theme(plot.title = element_text(face = "bold", size = 16, hjust = -0.1))
+
+# Arrange plots with better layout
+# Since we have 3 plots, let's arrange them in a 2x2 grid with the last spot empty
+grid.arrange(
+  p1, p2, p3, 
+  layout_matrix = rbind(c(1,2), c(3,NA)),
+  widths = c(1,1),
+  heights = c(1,1)
+)
+
+# # imputation --------------------------------------------------------------
+# ## attempting imputation
+# # Ensure `count` is numeric
+# join_df5$count <- as.numeric(join_df5$count)
+# # Only replace `count` with NA if it's a missing zero
+# join_df5$count[join_df5$zero_type == "missing_zero"] <- NA
+# # Check that only missing_zero values are NA
+# table(join_df5$zero_type, is.na(join_df5$count))
+# library(mice)
+# meth <- make.method(join_df5)
+# 
+# meth["count"] <- "rf"  # select method for imputatins
+# imputed_data <- mice(join_df5, method = meth, m = 5, seed = 123)
+# summary(imputed_data)
+# # Extract first imputed dataset
+# imputed_df <- complete(imputed_data, 1) # First imputed dataset
+# # Check if `structural_zero` or `true_zero` values were changed (they should NOT be!)
+# table(imputed_df$zero_type, is.na(imputed_df$count))
+# # Compare before and after imputation
+# table(join_df5$zero_type)
+# table(imputed_df$count)
+# table(join_df5$zero_type, imputed_df$count)
+# library(ggplot2)
+# ggplot(imputed_df, aes(x = count, fill = zero_type)) + geom_bar(position = "dodge") +
+#   theme_minimal() + labs(title = "Distribution of Imputed vs. Observed Counts",
+#        x = "Count (Number of Eggs)",
+#        y = "Frequency",
+#        fill = "Zero Type")
+# 
+# # Fit negative binomial model on each imputed dataset
+# nb_models <- with(imputed_data, glm.nb(count ~ dist_m + ang_rel_ds, data = join_df5))
+# summary(nb_models)
+# pooled_nb_model <- pool(nb_models)
+# summary(pooled_nb_model)
+# 
+# #exclude structural
+# model_data <- subset(imputed_df, zero_type != "structural_zero")
+# nb_models <- with(model_data, glm.nb(count ~ dist_m + ang_rel_ds, data = model_data))
+# summary(nb_models)
 
 
 
@@ -696,48 +780,42 @@ summary(nb_models)
 #   filter(!is.na(weight))
 
 # ZIB mixture model
-###prepare binomial outcome. This crunches multiple observations to 1. 
-join_df6 = join_df5 %>% mutate(cross_occurrence = if_else(is.na(final_count), 0L, if_else(final_count > 0, 1L, 0L))) %>% 
-  dplyr::select(genotype.x, genotype.y, cross_occurrence, suc, sum_count, zero_type, count, lat.x, lon.x, lat.y, lon.y, dist_m, ang_rel_ds, cos_ang, ang_no_flow, angle)  # Create binary outcome and select key columns
-join_df6 <- join_df6 %>% mutate(trials = 1)  # Add a column indicating one trial per observation
-library(glmmTMB) # Load glmmTMB package
-mod_zib <- glmmTMB(cross_occurrence ~ dist_m + cos_ang, # Conditional model predictors
-                   ziformula = ~ suc, # Zero‐inflation component predictor (e.g. fertilisation success. 
-                   family = binomial, # Specify binomial family for binary outcome
-                   data = join_df6) # Use prepared dataset with binary outcome
-summary(mod_zib) # Display model summary
-
-
-library(brms)  # Load the brms package
-# Define the model formula with zero-inflation
-zib_formula <- bf(
-  cross_occurrence | trials(1) ~ dist_m + cos_ang,  # Conditional model (logit-link Bernoulli)
-  zi ~ suc  # Zero-inflation modeled as a function of suc
-)
-# Set priors for both the conditional and zero-inflation components
-priors <- c(
-  set_prior("normal(-4, 1)", class = "Intercept"),               # Main model intercept
-  set_prior("normal(0, 1)", class = "b"),                        # Priors for dist_m and cos_ang effects
-  set_prior("normal(4, 1)", class = "Intercept", dpar = "zi"),   # Zero-inflation intercept (high probability of structural zeros)
-  set_prior("normal(-2, 0.5)", class = "b", dpar = "zi")         # Effect of suc on zero-inflation
-)
-# Fit the Zero-Inflated Binomial (ZIB) model
-m <- brm(
-  formula = zib_formula,  # Use the defined formula
-  data = join_df6,  # Use dataset with binary response (0/1)
-  family = zero_inflated_binomial(),  # Zero-inflated binomial family
-  prior = priors,  # Apply informed priors
-  chains = 4, cores = 4, iter = 2000, control = list(adapt_delta = 0.95)  # Improve sampling stability
-)
-summary(m)
-
-
-
-
-
-
-# plots -------------------------------------------------------------------
-
+# ###prepare binomial outcome. This crunches multiple observations to 1. 
+# join_df6 = join_df5 %>% mutate(cross_occurrence = if_else(is.na(final_count), 0L, if_else(final_count > 0, 1L, 0L))) %>% 
+#   dplyr::select(genotype.x, genotype.y, cross_occurrence, suc, sum_count, zero_type, count, lat.x, lon.x, lat.y, lon.y, dist_m, ang_rel_ds, cos_ang, ang_no_flow, angle)  # Create binary outcome and select key columns
+# join_df6 <- join_df6 %>% mutate(trials = 1)  # Add a column indicating one trial per observation
+# library(glmmTMB) # Load glmmTMB package
+# mod_zib <- glmmTMB(cross_occurrence ~ dist_m + cos_ang, # Conditional model predictors
+#                    ziformula = ~ suc, # Zero‐inflation component predictor (e.g. fertilisation success. 
+#                    family = binomial, # Specify binomial family for binary outcome
+#                    data = join_df6) # Use prepared dataset with binary outcome
+# summary(mod_zib) # Display model summary
+# 
+# 
+# library(brms)  # Load the brms package
+# # Define the model formula with zero-inflation
+# zib_formula <- bf(
+#   cross_occurrence | trials(1) ~ dist_m + cos_ang,  # Conditional model (logit-link Bernoulli)
+#   zi ~ suc  # Zero-inflation modeled as a function of suc
+# )
+# # Set priors for both the conditional and zero-inflation components
+# priors <- c(
+#   set_prior("normal(-4, 1)", class = "Intercept"),               # Main model intercept
+#   set_prior("normal(0, 1)", class = "b"),                        # Priors for dist_m and cos_ang effects
+#   set_prior("normal(4, 1)", class = "Intercept", dpar = "zi"),   # Zero-inflation intercept (high probability of structural zeros)
+#   set_prior("normal(-2, 0.5)", class = "b", dpar = "zi")         # Effect of suc on zero-inflation
+# )
+# # Fit the Zero-Inflated Binomial (ZIB) model
+# m <- brm(
+#   formula = zib_formula,  # Use the defined formula
+#   data = join_df6,  # Use dataset with binary response (0/1)
+#   family = zero_inflated_binomial(),  # Zero-inflated binomial family
+#   prior = priors,  # Apply informed priors
+#   chains = 4, cores = 4, iter = 2000, control = list(adapt_delta = 0.95)  # Improve sampling stability
+# )
+# summary(m)
+# 
+# 
 
 
 
@@ -771,7 +849,7 @@ map <- get_googlemap(
     lon = mean(lon_range),
     lat = mean(lat_range)
   ),
-  zoom = 20,
+  zoom = 21,
   color = "color",
   maptype = "satellite",
   # Define bounds explicitly
@@ -793,27 +871,31 @@ points_x_jittered <- st_jitter(points_x, amount = 0.000002) # Adjust amount as n
 
 # Overlay the distance plot on the map with jittered points and adjusted alpha
 distance_map_plot <- base_map +
-  geom_sf(data = lines_sf, 
-          aes(color = dist_m), 
-          #size = 30,  
-          linewidth = 1,# Thicker lines
-          inherit.aes = FALSE) + 
+  # Red points (bottom layer)
   geom_sf(data = points_y_jittered, 
           color = 'red', 
           size = 2.5,           
           alpha = 0.7,          
           inherit.aes = FALSE) + 
+  # Blue points (second from bottom)
   geom_sf(data = points_x, 
           color = 'blue', 
           size = 2.5,           
           alpha = 0.7,          
           inherit.aes = FALSE) + 
+  # Distance lines with reversed order (shorter on top)
+  geom_sf(data = lines_sf, 
+          aes(color = dist_m), 
+          linewidth = 1,
+          inherit.aes = FALSE,
+          alpha = 0.8) + 
   scale_color_gradient(
-    low = "#E6E6FA",    # Light purple
-    high = "#4B0082"    # Deep/hot purple
+    low = "#E6E6FA",    
+    high = "#4B0082"    
   ) +
-  labs(title = "Pairwise Crosses Between Sires and Dams", 
-       color = "Distance (m)",
+  scale_x_continuous(labels = scales::number_format(accuracy = 0.001)) +
+  scale_y_continuous(labels = scales::number_format(accuracy = 0.001)) +
+  labs(color = "Distance (m)",
        x = "Longitude",
        y = "Latitude") +
   theme_minimal()
@@ -1074,7 +1156,7 @@ breeding_plots <- map(sorted_mother_list, function(mother) {
     coord_fixed(xlim = c(min(nodes$lon) - sizee, max(nodes$lon) + sizee), 
                 ylim = c(min(nodes$lat) - sizee, max(nodes$lat) + sizee)) +
     theme_void() +
-    ggtitle(paste("Mother:", mother)) +
+    ggtitle(paste("Position:", mother)) +
     theme(
       legend.position = "none",
       plot.title = element_text(hjust = 0.5, size = 9),
@@ -1096,17 +1178,28 @@ n_rows <- 5
 layout <- t(matrix(seq_len(n_rows * n_cols), nrow = n_cols, ncol = n_rows))  # Transpose the matrix
 
 # Add the plots to a list and fill remaining slots with NULL
-plot_list <- c(breeding_plots,           # Your 19 plots
-               replicate(n_rows * n_cols - total_plots, NULL))  # Fill remaining slots with NULL
+# First, convert all plots to grobs explicitly
+plot_list <- c(
+  lapply(breeding_plots, function(p) {
+    if (is.null(p)) {
+      # Create an empty grob for NULL slots
+      grid::nullGrob()
+    } else {
+      # Convert ggplot object to grob
+      ggplotGrob(p)
+    }
+  }),
+  # Fill remaining slots with empty grobs
+  replicate(n_rows * n_cols - total_plots, grid::nullGrob(), simplify = FALSE)
+)
 
 # Create the grid arrangement
 arranged_plots <- grid.arrange(
   grobs = plot_list,
-  layout_matrix = layout,                # Use the transposed layout
-  heights = unit(rep(0.19, n_rows), "npc"),  # Slightly reduced height per row
-  widths = unit(rep(0.22, n_cols), "npc"),   # Slightly reduced width per column
+  layout_matrix = layout,
+  heights = unit(rep(0.19, n_rows), "npc"),
+  widths = unit(rep(0.22, n_cols), "npc"),
   padding = unit(5, "mm")
-  # Minimal padding between plots
 )
 
  
@@ -1125,14 +1218,14 @@ df_pos_only1 <- df_pos_only %>%
 links <- df_pos_only1 %>%
   dplyr::select(genotype.x, genotype.y) %>%
   count(genotype.x, genotype.y) %>%
-  mutate(source = paste0(genotype.y, "_sire"),  # Add '_sire' to genotype.y (left side)
-         target = paste0(genotype.x, "_dam")) %>%  # Add '_dam' to genotype.x (right side)
+  mutate(source = paste0(genotype.y, "_s"),  # Add '_sire' to genotype.y (left side)
+         target = paste0(genotype.x, "_e")) %>%  # Add '_dam' to genotype.x (right side)
   dplyr::select(source, target, n) %>%
   arrange(desc(n), target)
 
 # The unique node names ordered by distinct_crosses for sources (sire nodes)
 sources_ordered <- cross_counts1 %>%
-  mutate(source = paste0(genotype.y, "_sire")) %>%
+  mutate(source = paste0(genotype.y, "_s")) %>%
   arrange(desc(distinct_crosses)) %>%
   pull(source)
 
@@ -1172,14 +1265,18 @@ sankey_plot <- sankeyNetwork(
   Value = "n",
   NodeID = "name",
   units = "TWh",
-  fontSize = 12,
+  fontSize = 15,
   nodeWidth = 10,
   LinkGroup = "group",
-  iterations = 0 # Disable dynamic node reordering to preserve manual order
+  iterations = 0, # Disable dynamic node reordering to preserve manual order
+  sinksRight = T, # This ensures targets aren't forced to the right
+  nodePadding = 10, # Increase space between nodes
+  width = 600,      # Increase width to accommodate labels
+  height = 700      # Adjust height as needed
 )
 sankey_plot
 
-#ggsave(p4, filename = 'sankey_crosses.png',  path = "./plots", device = "png",  width = 6, height = 5)  #make sure to have .tiff on filename
+#ggsave(sankey_plot, filename = 'sankey_crosses.png',  path = "./plots", device = "png",  width = 6, height = 5)  #make sure to have .tiff on filename
 
 
 

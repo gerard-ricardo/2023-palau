@@ -64,7 +64,7 @@ kmeans_result <- kmeans(pca_data, centers = 1, nstart = 25)
 individuals_in_cluster3 <- which(kmeans_result$cluster == 3) #find indiv in each cluster
 silhouette_score <- silhouette(kmeans_result$cluster, dist(pca_data))
 summary(silhouette_score)
-plot(silhouette_score)
+#plot(silhouette_score)
 pca_complete$kmeans_cluster <- as.factor(kmeans_result$cluster)
 #cluster 2 is  strong, others weak
 
