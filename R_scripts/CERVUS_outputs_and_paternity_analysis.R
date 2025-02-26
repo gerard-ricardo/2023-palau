@@ -1,20 +1,18 @@
 ## Cervus outputs
 
-##Proiorites
+## Priorities
 # I may need to also model just against the centre patch because fert between radial lines complicates which fragment actualy fertilised
 #might need to remove self fert individuals from analysis
 
 ## Notes
-# apparently C13 is a hugh colony
-# Conflict between dDocent and standard. Need to resolve
-#Check:Double check sum_count (all larvae) not greater than suc
-#INCLUDING ZEROS
-#Best approach so far is to include zeros, test for zeroinflation, then sipmply. So far, simple model works best
+# apparently C13 is a huge colony
+
+##INCLUDING ZEROS
+#Best approach so far is to include zeros, test for zeroinflation, then simply. So far, simple model works best
 #I think imputation is working BUTR SEEMS DANGEROUS SO MUCH MISSING DATA, but may need to filter all pairwise crosses for non fragment combinations
 
-#NOT INCLUDING ZEROS
-    #no effect of some just because no data points  e.g angle - need to check
-
+##NOT INCLUDING ZEROS
+#no effect of some just because no data points  e.g angle - need to check
 
 # where is c2 and c4?
 # fro the network analysis, maybe try keeping all possible pairwise combination to provide structure, but colour the observ
@@ -166,23 +164,26 @@ angle_counts_binned <- as.data.frame(table(join_df2$angle_binned)) # Create a ta
 colnames(angle_counts_binned) <- c("angle_binned", "count") # Rename columns for clarity
 angle_counts_binned$angle_binned <- as.numeric(as.character(angle_counts_binned$angle_binned)) # Convert the binned angles to numeric for plotting
 # to true north
-(polar_plot = polar.plot(lengths = angle_counts_binned$count, polar.pos = angle_counts_binned$angle_binned, radial.lim = c(0, max(angle_counts_binned$count)), 
-           start = 90, lwd = 3, line.col = 4, clockwise = T)) # Plot using polar coordinates with binned angles
-#prepare for panelling
+(polar_plot = polar.plot(lengths = angle_counts_binned$count, polar.pos = angle_counts_binned$angle_binned, 
+                         radial.lim = c(0, max(angle_counts_binned$count)), start = 90, lwd = 5, line.col = 4, 
+                         clockwise = T, cex.axis = 2, cex = 2,cex.lab = 2)) # Plot using polar coordinates with binned angles
+
+# #prepare for panelling
 create_polar_plot <- function() {
-  par(mar = c(2, 2, 2, 2))  # Set margins
+  par(mar = c(0, 0, 0, 0))  # Set margins
   polar.plot(
     lengths = angle_counts_binned$count,
     polar.pos = angle_counts_binned$angle_binned,
     radial.lim = c(0, max(angle_counts_binned$count)),
-    start = 90, 
-    lwd = 3, 
-    line.col = 4, 
+    start = 90,
+    lwd = 4,
+    line.col = 4,
+    cex.axis = 2, cex = 2,cex.lab = 2,
     clockwise = TRUE
   )
 }
 # to water flow (currently to radial line 5 )
-polar.plot(lengths = angle_counts_binned$count, polar.pos = angle_counts_binned$angle_binned, radial.lim = c(0, max(angle_counts_binned$count)), start = 236.5, lwd = 3, line.col = 4) # Plot using polar coordinates with binned angles
+#polar.plot(lengths = angle_counts_binned$count, polar.pos = angle_counts_binned$angle_binned, radial.lim = c(0, max(angle_counts_binned$count)), start = 236.5, lwd = 3, line.col = 4) # Plot using polar coordinates with binned angles
 
 # perform circular stats
 join_df2$angle_rad <- join_df2$angle * pi / 180
@@ -300,7 +301,7 @@ join_df2 %>% group_by(genotype.y) %>%                # Group by genotype.y
 join_df2 %>% group_by(genotype.x) %>%                # Group by genotype.y
   summarise(count = n_distinct(genotype.y)) %>% summarise(mean_count = mean(count))  
 #mean dams fert per sire was 2.72
-#
+
 # how many distinct dams did top 10% sire
 data3 = join_df2 %>% dplyr::select(genotype.y, genotype.x) %>% distinct() 
 order = data3 %>% count(genotype.y) %>% arrange(desc(n))  %>%  dplyr::select(-n)     
@@ -311,6 +312,7 @@ total_distinct_x <- df11 %>% distinct(genotype.x) %>% nrow()
 percentage_sired_by_top <- (distinct_x_sired_by_top / total_distinct_x) * 100
 percentage_sired_by_top
 
+str(join_df2)
 
 # stats -------------------------------------------------------------------
 
@@ -697,17 +699,37 @@ gen_pred <- cbind(pred_data$gen, get_predictions(pred_data$gen, global_model_red
 library(ggplot2)
 
 # Distance effect plot
-p1 <- p1 + 
-  labs(title = "A") +
+# Distance effect plot
+p1 <- ggplot(dist_pred, aes(x = dist_m_c)) +
+  geom_ribbon(aes(ymin = lwr, ymax = upr), alpha = 0.2) +
+  geom_line(aes(y = fit)) +
+  geom_point(data = join_df5, aes(y = final_count), alpha = 0.2) +
+  theme_sleek2() +
+  labs(x = "Distance (centered)", 
+       y = "Predicted count", 
+       title = "A") +
   theme(plot.title = element_text(face = "bold", size = 16, hjust = -0.1))
 
-#Angle
-p2 <- p2 + 
-  labs(title = "B") +
+# Angle effect plot
+p2 <- ggplot(ang_pred, aes(x = cos_ang_c)) +
+  geom_ribbon(aes(ymin = lwr, ymax = upr), alpha = 0.2) +
+  geom_line(aes(y = fit)) +
+  geom_point(data = join_df5, aes(y = final_count), alpha = 0.2) +
+  theme_sleek2() +
+  labs(x = "Cosine angle (centered)", 
+       y = "Predicted count", 
+       title = "B") +
   theme(plot.title = element_text(face = "bold", size = 16, hjust = -0.1))
-#Genetic dist
-p3 <- p3 + 
-  labs(title = "C") +
+
+# Genetic distance effect plot
+p3 <- ggplot(gen_pred, aes(x = gen_dist)) +
+  geom_ribbon(aes(ymin = lwr, ymax = upr), alpha = 0.2) +
+  geom_line(aes(y = fit)) +
+  geom_point(data = join_df5, aes(y = final_count), alpha = 0.2) +
+  theme_sleek2() +
+  labs(x = "Genetic distance", 
+       y = "Predicted count", 
+       title = "C") +
   theme(plot.title = element_text(face = "bold", size = 16, hjust = -0.1))
 
 # Arrange plots with better layout
@@ -898,7 +920,12 @@ distance_map_plot <- base_map +
   labs(color = "Distance (m)",
        x = "Longitude",
        y = "Latitude") +
-  theme_minimal()
+  theme_minimal() +
+  theme(
+    legend.position = c(0.8, 0.75),    # Position inside plot: x=0.1, y=0.2 (adjust these values as needed)
+    legend.background = element_rect(fill = "white", color = "black", linewidth = 0.5),  # Add background
+    legend.margin = margin(5, 5, 5, 5)  # Add margin around legend
+  )
 
 distance_map_plot
 
@@ -1265,14 +1292,14 @@ sankey_plot <- sankeyNetwork(
   Value = "n",
   NodeID = "name",
   units = "TWh",
-  fontSize = 15,
+  fontSize = 17,
   nodeWidth = 10,
   LinkGroup = "group",
   iterations = 0, # Disable dynamic node reordering to preserve manual order
   sinksRight = T, # This ensures targets aren't forced to the right
   nodePadding = 10, # Increase space between nodes
-  width = 600,      # Increase width to accommodate labels
-  height = 700      # Adjust height as needed
+  width = 800,      # Increase width to accommodate labels
+  height = 400      # Adjust height as needed
 )
 sankey_plot
 

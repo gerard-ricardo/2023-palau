@@ -57,13 +57,20 @@ plot(Kest(rslt2, correction = c("best"))) # Ripley’s K-function. At a given di
 dist <- nndist(rslt2) # distance vector
 quantile(dist) # quantile  #0.707
 median(dist)
-sd(dist)
-
-# density of colonies
-nrow(data1) / (5 * 50) # 0.304 col/m^2
 n_n.med <- lapply(dist, median) # 0.71m apart
 n_n.mean_all <- mean(unlist(n_n.med))
 n_n.sd_all <- sd(unlist(n_n.med))
+print(paste0('distance: ', median(dist) ))
+sd(dist)
+
+# density of colonies
+transect_width = 5
+transect_length = 50
+den1 = nrow(data1) / (transect_width * transect_length) # 0.304 col/m^2
+print(paste0('density: ',den1))
+
+
+
 
 # density of neigherest neighbout
 plot(density(unlist(dist)))

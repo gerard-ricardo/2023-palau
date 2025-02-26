@@ -66,7 +66,7 @@ file.remove(c("temp_sankey.html", "temp_sankey.png"))
 
 ##########################
 ## polar plot
-png(filename = "temp1.png", width = 600, height = 600)
+png(filename = "temp1.png", width = 400, height = 400)
 create_polar_plot()
 dev.off()
 # Read back as a raster and convert to grob
@@ -79,33 +79,33 @@ class(polar_plot_grob)
 
 # inset -------------------------------------------------------------------
 # First create the simplified inset plot
-inset_pairwise <- pairwise_dist_plot + 
-  #theme_minimal() +
-  theme(
-    plot.background = element_rect(fill = "white", color = "black"),
-    plot.margin = margin(1, 1, 1, 1),
-    text = element_text(size = 8)  # Smaller text for inset
-  )
-
-# Get the coordinate ranges from your original data
-x_range <- range(c(join_df2$lon.x, join_df2$lon.y))
-y_range <- range(c(join_df2$lat.x, join_df2$lat.y))
-
-# Calculate inset position (bottom right corner)
-inset_width <- diff(x_range) * 0.65   # Width of inset (30% of plot width)
-inset_height <- diff(y_range) * 0.8  # Height of inset (30% of plot height)
-
-# Combine main plot with inset
-map_with_inset <- distance_map_plot +
-  annotation_custom(
-    grob = ggplotGrob(inset_pairwise),
-    #edge positon fo plot
-    xmin = 134.49560,     # Move left edge further left
-    xmax = 134.49582,     # Keep right edge near main plot edge
-    ymin = 7.313051,     # Lift bottom edge slightly
-    ymax = 7.313229      # Make height larger
-  )
-map_with_inset
+# inset_pairwise <- pairwise_dist_plot + 
+#   #theme_minimal() +
+#   theme(
+#     plot.background = element_rect(fill = "white", color = "black"),
+#     plot.margin = margin(1, 1, 1, 1),
+#     text = element_text(size = 8)  # Smaller text for inset
+#   )
+# 
+# # Get the coordinate ranges from your original data
+# x_range <- range(c(join_df2$lon.x, join_df2$lon.y))
+# y_range <- range(c(join_df2$lat.x, join_df2$lat.y))
+# 
+# # Calculate inset position (bottom right corner)
+# inset_width <- diff(x_range) * 0.65   # Width of inset (30% of plot width)
+# inset_height <- diff(y_range) * 0.8  # Height of inset (30% of plot height)
+# 
+# # Combine main plot with inset
+# map_with_inset <- distance_map_plot +
+#   annotation_custom(
+#     grob = ggplotGrob(inset_pairwise),
+#     #edge positon fo plot
+#     xmin = 134.49560,     # Move left edge further left
+#     xmax = 134.49582,     # Keep right edge near main plot edge
+#     ymin = 7.313051,     # Lift bottom edge slightly
+#     ymax = 7.313229      # Make height larger
+#   )
+# map_with_inset
 
 
 # panel -------------------------------------------------------------------
@@ -126,17 +126,18 @@ map_with_inset
 lay <- rbind(
   c(1, 1, 1, 2, 2),    # First row: map_with_inset(1) | arranged_plots(2)
   c(1, 1, 1, 2, 2),  
-  c(1, 1, 1, 2, 2),# Second row: map_with_inset cont. | arranged_plots cont.
+  c(5, 5, 5, 2, 2),# Second row: map_with_inset cont. | arranged_plots cont.
   c(3, 3, 3 ,4, 4),    # Third row: sankey_plot(3) | arranged_plots cont.
   c(3, 3, 3, 4, 4)     # Fourth row: polar_plot(4) | last_plot(5)
 )
 
 # Create list of plots in the order they appear in the layout
 plot_list <- list(
-  map_with_inset,      # 1
+  distance_map_plot,      # 1
   arranged_plots,      # 2
   sankey_plot_grob,    # 3
-  polar_plot_grob      # 4 (assuming this exists)
+  polar_plot_grob,      # 4 (assuming this exists)
+  pairwise_dist_plot   #5
 )
 
 # Create the final panel
@@ -148,3 +149,74 @@ panel2 <- grid.arrange(
 )
 
 #ggsave(panel2, filename = 'fig2.pdf',  path = "./plots", device = 'pdf',  width = 9, height = 9.5)  #
+
+
+
+
+# will try saving sepeately for Illustrator -------------------------------
+
+# Create plots directory if it doesn't exist
+plot_dir <- "plots"
+if (!dir.exists(plot_dir)) {
+  dir.create(plot_dir)
+}
+
+# Save distance map plot
+ggsave(
+  file.path(plot_dir, "distance_map_plot.pdf"),
+  plot = distance_map_plot,
+  width = 8,
+  height = 6,
+  dpi = 300,
+  bg = "white"
+)
+
+# Save arranged plots (model effects)
+ggsave(
+  file.path(plot_dir, "arranged_plots.pdf"),
+  plot = arranged_plots,
+  width = 4,
+  height = 6,
+  dpi = 300,
+  bg = "white"
+)
+
+# Save pairwise distance plot
+ggsave(
+  file.path(plot_dir, "pairwise_dist_plot.pdf"),
+  plot = pairwise_dist_plot,
+  width = 6,      # Standard width - adjust as needed
+  height = 4,     # Standard height - adjust as needed
+  dpi = 300,
+  bg = "white"
+)
+
+# Save Sankey plot
+htmlwidgets::saveWidget(
+  sankey_plot, 
+  "temp_sankey.html",
+  selfcontained = TRUE
+)
+
+webshot(
+  "temp_sankey.html", 
+  file.path(plot_dir, "sankey_plot.png"),
+  selector = ".sankeyNetwork",
+  zoom = 4,
+  delay = 0.2,
+  vwidth = 1000,
+  vheight = 1000
+)
+
+# Save polar plot
+png(
+  filename = file.path(plot_dir, "polar_plot.png"),
+  width = 1000,
+  height = 1000,
+  res = 300
+)
+create_polar_plot()
+dev.off()
+
+# Clean up temporary files
+file.remove("temp_sankey.html")
