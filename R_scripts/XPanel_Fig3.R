@@ -213,7 +213,8 @@ png(
   filename = file.path(plot_dir, "polar_plot.png"),
   width = 1000,
   height = 1000,
-  res = 300
+  res = 300,
+  pointsize = 12
 )
 create_polar_plot()
 dev.off()
