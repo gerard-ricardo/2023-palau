@@ -53,6 +53,24 @@ clarkevans(rslt2)
 plot(Kest(rslt2, correction = c("best"))) # Ripley’s K-function. At a given distance, how pattern relates to randomness (Kpois).
 # If blackline is above, indicates clustering, if blackline below indiates ordering, if on red line, indicated random.
 
+#try and find best cluster
+fitted_models <- list(
+  Poisson = ppm(rslt2, ~1),  # Null model (Complete Spatial Randomness)
+  Thomas = kppm(rslt2 ~1, clusters = "Thomas", method = "clik2"),  # Thomas Process (clustered)
+  Matern = kppm(rslt2 ~1, clusters = "MatClust", method = "clik2"),  # Matérn Process (clustered)
+  HardCore = kppm(rslt2 ~1, clusters = "Cauchy", method = "clik2")  # Hard-Core Process (competition)
+)
+
+# Compare models using AIC (Lower AIC is better)
+(model_comparison <- sapply(fitted_models, AIC))
+
+fitted_thomas <- kppm(rslt2 ~1, clusters = "Thomas", method = "clik2") # Fit Thomas process model
+scale_thomas <- sqrt(fitted_thomas$par[2])  # Extract estimated scale parameter
+
+#Thomas Clustering ones the best
+
+
+
 # nearest neighbour
 dist <- nndist(rslt2) # distance vector
 quantile(dist) # quantile  #0.707

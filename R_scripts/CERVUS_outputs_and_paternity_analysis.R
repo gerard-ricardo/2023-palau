@@ -184,6 +184,26 @@ create_polar_plot <- function() {
 }
 # to water flow (currently to radial line 5 )
 #polar.plot(lengths = angle_counts_binned$count, polar.pos = angle_counts_binned$angle_binned, radial.lim = c(0, max(angle_counts_binned$count)), start = 236.5, lwd = 3, line.col = 4) # Plot using polar coordinates with binned angles
+# Define center angle and range
+center_angle <- 326
+angle_range <- 45
+
+# Compute lower and upper bounds with wrap-around at 360 degrees
+lower_bound <- (center_angle - angle_range) %% 360
+upper_bound <- (center_angle + angle_range) %% 360
+
+# Identify indices of angles within the range
+if (lower_bound < upper_bound) {
+  filtered_counts <- angle_counts_binned$count[angle_counts_binned$angle_binned >= lower_bound & 
+                                                 angle_counts_binned$angle_binned <= upper_bound]
+} else {
+  # Wrap-around case (angles that cross 0°)
+  filtered_counts <- angle_counts_binned$count[angle_counts_binned$angle_binned >= lower_bound | 
+                                                 angle_counts_binned$angle_binned <= upper_bound]
+}
+# Compute the percentage
+percentage <- sum(filtered_counts) / sum(angle_counts_binned$count) * 100
+cat("Percentage of counts within ±45° of 326°:", round(percentage, 2), "%\n")
 
 # perform circular stats
 join_df2$angle_rad <- join_df2$angle * pi / 180

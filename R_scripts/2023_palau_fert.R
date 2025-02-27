@@ -165,8 +165,8 @@ plot(radial_indiv$prop ~ radial_indiv$deg)
 md1 <- gamm(cbind(suc, tot - suc) ~ s(deg, k = 3) + dist,   random = list(obs = ~1), family = binomial,  method = "REML", verbosePQL = F, 
             data = radial_indiv)
 
-md1_int <- gamm(cbind(suc, tot - suc) ~ s(deg, k = 3) * dist,   random = list(obs = ~1), family = binomial,  method = "REML", verbosePQL = F, 
-            data = radial_indiv)  #error
+# md1_int <- gamm(cbind(suc, tot - suc) ~ s(deg, k = 3) * dist,   random = list(obs = ~1), family = binomial,  method = "REML", verbosePQL = F, 
+#             data = radial_indiv)  #error
 md1$gam
 coef(md1)
 summary(md1)
@@ -221,11 +221,15 @@ radial_indiv$residuals <- residuals(md1$gam, type = "deviance")
 p0 <- ggplot(new_data, aes(x = dist, y = deg)) +
   geom_raster(aes(fill = predicted)) +
   scale_fill_gradient(low = "#3B9AB2", high = "#F21A00", breaks = seq(0.1, 0.9, by = 0.1)) +
-  labs(x = "Distance from centre patch (m)", y = "Downstream of centre patch (degrees)", fill = "Fertilisation \n success") +
+  labs(x = "Distance from center patch (m)", y = "Downstream of center patch (°)", fill = "Fertilisation \n success") +
   geom_contour(aes(z = predicted), breaks = seq(0.1, 0.9, by = 0.1), color = "white") +
   theme_minimal() +
   scale_y_reverse() + 
   geom_hline(yintercept = rad_lines, color = "#E1AF00", lty = 2) +
+  annotate("text", x = max(new_data$dist)+1, y = rad_lines[1]-5, label = "Radial line 2", 
+           color = "#E1AF00", size = 5, hjust = 1.2) +  # Adjust position
+  annotate("text", x = max(new_data$dist)+1, y = rad_lines[length(rad_lines)]-5, label = "Radial line 7", 
+           color = "#E1AF00", size = 5, hjust = 1.2)+
   theme(
     legend.key.height = unit(1.5, "cm"), # Increase the height of legend keys
     axis.title = element_text(size = 13), # Increase axis label size
@@ -235,4 +239,4 @@ p0 <- ggplot(new_data, aes(x = dist, y = deg)) +
 #   scale_color_gradient2(low = "blue", mid = "white", high = "red", midpoint = 0)
 p0
 
-ggsave(p0, filename = '2023palau_fert.tiff',  path = "./plots", device = "tiff",  width = 8, height = 5)  #this often works better than pdf
+ggsave(p0, filename = '2023palau_fert.pdf',  path = "./plots", device = "pdf",  width = 10, height = 6)  #this often works better than pdf
