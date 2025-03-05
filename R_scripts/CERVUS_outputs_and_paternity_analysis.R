@@ -17,6 +17,14 @@
 # where is c2 and c4?
 # fro the network analysis, maybe try keeping all possible pairwise combination to provide structure, but colour the observ
 
+##THOUGHT ON ASYNCRONY
+# - very unequal sample size using only mum approach
+#async  sync 
+#4   875
+# don't have info on most dads
+#lots of missing values
+#wondering if any point looking at pairwise crosses given such missing data. Probably better suited to the fert data
+#going by the fert data, 3_3 and 3_10 might be low because of spawning asyncrony, but not enought data to know
 
 # 1. Load Libraries ------------------------------------------------------
 library(tidyverse)
@@ -153,6 +161,18 @@ points_y_proj <- st_transform(points_y, crs = 32653)
 join_df2$dist <- st_distance(points_x_proj, points_y_proj, by_element = TRUE)
 join_df2$dist_m = as.numeric(join_df2$dist )
 
+#add asycnrony (mum only)
+str(join_df2$time)
+join_df2$minutes <- sub(".*:(\\d+)", "\\1", join_df2$time)  %>% as.numeric()# Extract minutes
+
+#join_df2$time <- strptime(join_df2$time, format = "%H:%M") # Convert to time format
+mean(join_df2$minutes, na.rm = T)
+sd(join_df2$minutes, na.rm = T)
+hist(join_df2$minutes)  #weird distribution. Ineresting double peak. 
+which(join_df2$minutes < 44)
+join_df2$syncr <- ifelse(join_df2$minutes < 44, "async", "sync") # Assign labels based on condition
+
+
 # calculate angle between mum and fathers (not weighted)
 bin_width <- 20 # Define the bin width (e.g., 20 degrees)
 join_df2 <- join_df2 %>% mutate(angle = (bearing(cbind(lon.x, lat.x), cbind(lon.y, lat.y)) + 360) %% 360)  #angle of male realtive to female
@@ -209,6 +229,7 @@ cat("Percentage of counts within ±45° of 326°:", round(percentage, 2), "%\n")
 join_df2$angle_rad <- join_df2$angle * pi / 180
 angles_circular <- circular(join_df2$angle_rad, units = "radians")
 rayleigh.test(angles_circular)  #strong sig eefect
+
 
 
 # Analyses ----------------------------------------------------------------
@@ -345,11 +366,17 @@ unique_sires <- unique(na.omit(meta2$genotype))
 #create all pairwise combinations
 all_pairs <- expand.grid(genotype.x = unique_dams, genotype.y = unique_sires)
 #observed_crosses <- join_df2 %>% dplyr::select(genotype.x, genotype.y) %>% mutate(count = 1)
-observed_crosses_aggregated <- join_df2 %>% group_by(genotype.x, genotype.y) %>% summarise(count = n(), .groups = 'drop') #agreegate multiple pairwise crosses
-complete_data <-left_join(all_pairs, observed_crosses_aggregated, by = c("genotype.x", "genotype.y")) %>% mutate(count = replace_na(count, 0))
+#observed_crosses_aggregated <- join_df2 %>% group_by(genotype.x, genotype.y) %>% summarise(count = n(), .groups = 'drop') #agreegate multiple pairwise crosses
+observed_crosses_aggregated <- join_df2 %>% group_by(genotype.x, genotype.y, syncr) %>% summarise(count = n(), .groups = 'drop')
+
+#complete_data <-left_join(all_pairs, observed_crosses_aggregated, by = c("genotype.x", "genotype.y")) %>% mutate(count = replace_na(count, 0))
+complete_data <- left_join(all_pairs, observed_crosses_aggregated, by = c("genotype.x", "genotype.y")) %>% mutate(count = replace_na(count, 0), syncr = replace_na(syncr, "sync"))
+
 meta2_selected <- meta2 %>% mutate(genotype.x = genotype) %>% dplyr::select(genotype.x, lat, lon, total_mean_dia) %>% distinct() %>% na.omit()
 meta2_selected_y <- meta2 %>% mutate(genotype.y = genotype) %>% dplyr::select(genotype.y, lat, lon, total_mean_dia) %>% distinct() %>% na.omit()
-join_df3 = left_join(complete_data, meta2_selected, by = c("genotype.x"), relationship = "many-to-one") %>% rename(lat.x = lat, lon.x = lon)
+#join_df3 = left_join(complete_data, meta2_selected, by = c("genotype.x"), relationship = "many-to-one") %>% rename(lat.x = lat, lon.x = lon)
+join_df3 = left_join(complete_data, meta2_selected, by = c("genotype.x"), relationship = "many-to-one") %>% rename(lat.x = lat, lon.x = lon) %>% mutate(syncr = as.factor(syncr))
+
 join_df3 = left_join(join_df3, meta2_selected_y, by = c("genotype.y"), relationship = "many-to-one") %>% rename(lat.y = lat, lon.y = lon)
 #remove c2 and c4 for the moment
 join_df3 <- join_df3[complete.cases(join_df3), ] # make sure import matches NA type
@@ -374,7 +401,8 @@ data4 = data1 %>% dplyr::select(id, suc, prop) %>% na.omit() %>% rename(genotype
 #join_df4 = left_join(join_df3, data4, by = 'genotype.x') %>% mutate(p_s  = count/suc) %>% na.omit() 
 #remove females with no fert
 # Merge all dam-sire pairs with observed crosses without filtering
-join_df4 <- join_df3 %>% left_join(data4, by = 'genotype.x') %>% na.omit() #here suc is only use as guidance
+#join_df4 <- join_df3 %>% left_join(data4, by = 'genotype.x') %>% na.omit() #here suc is only use as guidance
+join_df4 <- join_df3 %>% left_join(data4, by = 'genotype.x') %>% na.omit() %>% dplyr::select(genotype.x, genotype.y, count, suc, syncr, everything())
 join_df4  %>% group_by(genotype.x) %>% summarise(count = sum(count), suc = first(suc)) %>% mutate(diff = suc - count) %>% data.frame()
 
 
@@ -522,10 +550,11 @@ join_df5$weight <- ifelse(join_df5$sum_count == join_df5$suc,
                           1,  # Assign weight of 1 when sum_count == suc
                           join_df5$sum_count / join_df5$suc)  # Otherwise, use the existing formula
 
-plot(join_df5$final_count ~ (join_df5$total_mean_dia.y))
-plot(join_df5$final_count ~ (join_df5$cos_ang))
-plot(join_df5$final_count ~ (join_df5$gen_dist))
-plot(join_df5$final_count ~ (join_df5$gen_dist_log))  #made it worse
+plot(join_df5$final_count ~ join_df5$total_mean_dia.y)
+plot(join_df5$final_count ~ join_df5$cos_ang)
+plot(join_df5$final_count ~ join_df5$gen_dist)
+plot(join_df5$final_count ~ join_df5$gen_dist_log)  #made it worse
+plot(join_df5$final_count ~ join_df5$syncr)  #
 
 #box-Cox
 join_df5$final_count_shifted <- join_df5$final_count + 0.1  # Shift response to be positive

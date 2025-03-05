@@ -83,11 +83,41 @@ with(data1, mean(prop, na.rm = T))  #unweighted
 #weighted mean
 (wei_mean_prop_cent <- sum(data1$prop * data1$tot, na.rm = TRUE) / sum(data1$tot, na.rm = TRUE))
 (wei_mean_prop_cent <- sum(centre_indiv$prop * centre_indiv$tot, na.rm = TRUE) / sum(centre_indiv$tot, na.rm = TRUE))  #centre
+#I dont think weighting approporate here, as the low one is over weighted
+mean(centre_indiv$prop)
+
+#try downsampling
+#central
+set.seed(123) # Ensure reproducibility
+target_n <- min(centre_indiv$tot)# Desired sample size per id
+resampled_data <- centre_indiv %>% group_by(id) %>% mutate(prob_suc = suc / tot) %>%  filter(tot >= target_n) %>%  # Only resample when tot is large
+  mutate(suc1 = rbinom(1, target_n, prob_suc), fail1 = target_n - suc1, tot1 = target_n, prop1 = suc1 / tot1) %>%
+  ungroup()%>% data.frame()
+mean(resampled_data$prop1)
+#all
+set.seed(123) # Ensure reproducibility
+target_n_a <- 50# Desired sample size per id
+resampled_data_all <- data1 %>% group_by(id) %>% mutate(prob_suc = suc / tot) %>%  filter(tot >= target_n_a) %>%  # Only resample when tot is large
+  mutate(suc1 = rbinom(1, target_n, prob_suc), fail1 = target_n - suc1, tot1 = target_n, prop1 = suc1 / tot1) %>%
+  ungroup() %>% data.frame()
+mean(resampled_data_all$prop1)
+#radial
+set.seed(124) # Ensure reproducibility
+target_n_a <- 50 # Desired sample size per id
+resampled_data_rad <- radial_indiv %>% group_by(id) %>% mutate(prob_suc = suc / tot) %>%  filter(tot >= target_n_a) %>%  # Only resample when tot is large
+  mutate(suc1 = rbinom(1, target_n, prob_suc), fail1 = target_n - suc1, tot1 = target_n, prop1 = suc1 / tot1) %>%
+  ungroup() %>% data.frame()
+mean(resampled_data_rad$prop1)
+
+
+
 (wei_mean_prop_rad <- sum(radial_indiv$prop * radial_indiv$tot, na.rm = TRUE) / sum(radial_indiv$tot, na.rm = TRUE))  #spokes
 
 
 plot(radial_indiv$prop ~ radial_indiv$dist)
 plot(radial_indiv$prop ~ radial_indiv$deg)
+plot(radial_indiv$prop ~ radial_indiv$time_from_base)
+text(radial_indiv$time_from_base, radial_indiv$prop, labels = radial_indiv$id, pos = 3, cex = 0.8, col = "red") # Add labels
 
 # Modelling ------------------------------------------------------------
 
@@ -200,7 +230,7 @@ cv_results <- lapply(1:k, function(i) {
 #no diff between k = 2 and 3, >3 is worse
 ################
 
-AIC(md1)  #k = 3 best
+#AIC(md1)  #k = 3 best
 plot(fitted(md1$gam), residuals(md1$gam)) # fitted vs residuals
 abline(h = 0)
 # Generate new_data for predictions
@@ -210,7 +240,7 @@ new_data <- expand.grid(
   quality_score = 1  
 )
 
-hist(new_data$predicted)
+#hist(new_data$predicted)
 quantile(new_data$predicted)
 
 # Add a dummy observation level for prediction purposes
@@ -237,6 +267,11 @@ p0 <- ggplot(new_data, aes(x = dist, y = deg)) +
   )# add deviance
 # p0 = p0 +  geom_point(data = radial_indiv, aes(x = dist, y = deg, color = residuals), size = 2)+
 #   scale_color_gradient2(low = "blue", mid = "white", high = "red", midpoint = 0)
+p0 <- p0 +
+  geom_point(data = radial_indiv, aes(x = dist, y = deg, color = prop), size = 2) +
+  geom_text(data = radial_indiv, aes(x = dist, y = deg, label = round(prop, 2)), 
+            color = "black", size = 3, vjust = -1)  # Adjust size and position
 p0
 
-ggsave(p0, filename = '2023palau_fert.pdf',  path = "./plots", device = "pdf",  width = 10, height = 6)  #this often works better than pdf
+
+#ggsave(p0, filename = '2023palau_fert.pdf',  path = "./plots", device = "pdf",  width = 10, height = 6)  #this often works better than pdf
