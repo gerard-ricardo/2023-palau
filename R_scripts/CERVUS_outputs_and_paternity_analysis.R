@@ -296,7 +296,7 @@ pairwise_dist_plot
 
 #ggsave(p1, filename = '2023palau_intercol.tiff',  path = "./plots", device = "tiff",  width = 5, height = 5)  #this often works better than pdf
 
-##weighting for possible pairwise combinations (overrepresetns under values)
+## weighting for possible pairwise combinations (overrepresetns under values)
 dens_est <- density(pairs_df$dist_m,from=min(pairs_df$dist_m),to=max(pairs_df$dist_m),n=512) # Estimate density of all available pairwise distances
 dens_func <- approxfun(dens_est$x,dens_est$y,rule=2) # Create an interpolation function for density values
 join_df2$weight_distance <- 1/dens_func(join_df2$dist_m) # Assign a weight to each observed distance (inverse of estimated density)
@@ -307,6 +307,10 @@ ggplot(join_df2, aes(x=dist_m)) + geom_density(aes(fill="blue", alpha=0.3, colou
   labs(x="Distance (m)",y="Probability Density",title="Pairwise Distance Distribution") + theme_minimal() # Plot density
 
 join_df2$dist_m
+
+ks.test(join_df2$dist_m, pairs_df$dist_m)
+ks.test(join_df2$normalised_weight , pairs_df$dist_m)
+
 
 
 
@@ -673,15 +677,15 @@ sum(resid(mod_zinb, type = "pearson")^2) / (nrow(data1) - length(coef(mod_zinb))
 library(RVAideMemoire) # GLMM overdispersion test
 library(performance)
 # check_overdispersion(md1)  #only for count data
-plot(fitted(mod_zinb), resid(mod_zinb)) # fitted vs residuals
+plot(fitted(global_model_red_add), resid(global_model_red_add)) # fitted vs residuals
 abline(h = 0)
-performance::r2(mod_zinb)
-icc(mod_zinb) # Intraclass Correlation Coefficient
-check_zeroinflation(mod_zinb_weighted_nodia)
-check_singularity(mod_zinb)
-check_model(mod_nb)
+performance::r2(global_model_poisson)
+icc(global_model_red_add) # Intraclass Correlation Coefficient
+check_zeroinflation(global_model_poisson)
+check_singularity(global_model_poisson)
+check_model(global_model_poisson)
 library(DHARMa)
-sim_res <- simulateResiduals(global_model_red_add)
+sim_res <- simulateResiduals(global_model_poisson)
 testOutliers(sim_res, type = "bootstrap") #double checkoutliers
 plot(sim_res)
 
