@@ -100,7 +100,7 @@ data_wide <- data1_long %>% tidyr::pivot_wider(names_from = LocusID, values_from
 
 write.csv(data_wide, row.names = FALSE,
           file = file.path("C:/Users/gerar/OneDrive/1_Work/4_Writing/1_Palau genetics mixing/Cervus",
-                           "a_hyac_map_letters_code1_docent.csv"))
+                           "a_hyac_map_letters_code1_docent1.csv"))
 
 
 #DONT USE BELOW - SEE MOST RECENT HERON WRANGLING AS data_gl_filtered EXTRACTING CAUSED MISMATCHES

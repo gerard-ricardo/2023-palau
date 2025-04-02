@@ -2,6 +2,8 @@
 
 ## Priorities
 # I may need to also model just against the centre patch because fert between radial lines complicates which fragment actualy fertilised
+# OR just remove pairs where fathers could be many
+
 #might need to remove self fert individuals from analysis
 
 ## Notes
@@ -58,7 +60,7 @@ source("https://raw.githubusercontent.com/gerard-ricardo/data/master/theme_sleek
 #(data1 <- read.csv(file = file.path("C:/Users/gerar/OneDrive/1_Work/4_Writing/1_Palau genetics mixing/Cervus", "parentage_out1.csv")))
 #dDocent (make sure '.' between split words
 (data1 <- read.csv(file = file.path("C:/Users/gerar/OneDrive/1_Work/4_Writing/1_Palau genetics mixing/Cervus", 
-                                    "summary_out_docent.csv"), check.names = T))
+                                    "summary_out_docent1.csv"), check.names = T))
 nrow(data1)
 
 data1$Mother.ID <- sub("_5", "_05", data1$Mother.ID)

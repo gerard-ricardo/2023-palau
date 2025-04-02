@@ -65,6 +65,8 @@ fitted_models <- list(
 (model_comparison <- sapply(fitted_models, AIC))
 
 fitted_thomas <- kppm(rslt2 ~1, clusters = "Thomas", method = "clik2") # Fit Thomas process model
+fitted_matern <- kppm(rslt2 ~1, clusters = "MatClust", method = "clik2") # Fit MatClust process model
+
 scale_thomas <- sqrt(fitted_thomas$par[2])  # Extract estimated scale parameter
 
 #Thomas Clustering ones the best

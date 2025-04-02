@@ -64,25 +64,29 @@ tail(data_gl_filtered@other$ind.metrics, 10)
 
 # Filter ------------------------------------------------------------------
 
+# Step 4: Remove Monomorphic Loci --------------------------------------------
+data_gl_filtered <- gl.filter.monomorphs(data_gl_filtered, verbose = 2)
+# After filtering: 217  individuals, 50405  loci
+
 
 # Step 1: Remove Individuals with High Missing Data --------------------------
 ind_before <- indNames(data_gl_filtered)
 data_gl_filtered <- gl.filter.callrate(data_gl_filtered, method = "ind", threshold = 0.5, v = 3)
 ind_after <- indNames(data_gl_filtered)
 (removed_individuals <- setdiff(ind_before, ind_after))
-# After filtering: 201 individuals, 50405 loci
+# After filtering: 201 individuals, 50344  loci
+#"160" "66"  "61"  "154" "169" "53"  "43"  "110" "210" "108" "202" "213" "87"  "206" "78"  "111
+#3 of the 8  previous filt picked up as selfs were dropped here
 
 # Step 2: Remove Loci with High Missing Data ---------------------------------
 data_gl_filtered <- gl.filter.callrate(data_gl_filtered, method = "loc", threshold = 0.5, v = 3)
-# After filtering: 201 individuals, 32137 loci
+# After filtering: 201 individuals, 32097  loci
 
-# Step 3: Filter by Minor Allele Frequency (MAF) ----------------------------
+# Step 3: Filter by Minor Allele Frequency (MAF) i.e rare alleles----------------------------
 data_gl_filtered <- gl.filter.maf(data_gl_filtered, threshold = 0.05, v = 3)
+mean(data_gl_filtered@other$loc.metrics$maf)
 # After filtering: 201 individuals, 19563 loci
 
-# Step 4: Remove Monomorphic Loci --------------------------------------------
-data_gl_filtered <- gl.filter.monomorphs(data_gl_filtered, verbose = 2)
-# After filtering: 201 individuals, 16728 loci
 
 # Step 5: Filter Loci by Read Depth ------------------------------------------
 data_gl_filtered <- gl.filter.rdepth(data_gl_filtered, lower = 3, v = 3)
@@ -133,6 +137,12 @@ data_gl_filtered <- gl.filter.hwe(
 # After filtering: 201 individuals, 1328  loci
 
 
+#Final filtering to match Premachandra 2019 paternity recommendation
+data_gl_filtered <- gl.filter.callrate(data_gl_filtered, method = "loc", threshold = 0.99, v = 3)
+data_gl_filtered <- gl.filter.maf(data_gl_filtered, threshold = 0.07, v = 3)
+mean(data_gl_filtered@other$loc.metrics$maf)
+
+
 
 # Final Recalculation of Metrics ---------------------------------------------
 
@@ -144,6 +154,7 @@ data_gl_filtered@other$ind.metrics$genotype <- gsub("(?<=_)5(?=$)", "05", data_g
                                                     perl = TRUE) # Replace '_5' with '_05'
 data_gl_filtered@ind.names <- gsub("(_5)(?![0-9])", "_05", data_gl_filtered@ind.names, perl = TRUE) # Replace '_5' with '_05' when not followed by a digit
 
+data_gl_filtered@other$ind.metrics %>% group_by(stage) %>% summarise(n = n()) 
 
 # Convert GENIND OBJECT all indiv
 data_genind_pre <- gl2gi(data_gl_filtered)
