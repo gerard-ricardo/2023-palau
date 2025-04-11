@@ -1,4 +1,10 @@
 # clones and genetic relatedness------------------------------------------------------------------
+
+#SEE COLONY BESTCLONE FOR CLONE ANALYSIS.  SAME AS SMOUSE BUT MORE DEFENSIABLE (EXCEPT C5_2)
+
+
+
+
 library(igraph)
 library(ggraph)
 
@@ -76,7 +82,7 @@ clusters <- components(graph)
 grouped_individuals <- data.frame(id = names(clusters$membership), Cluster = clusters$membership)
 genotype_data <- grouped_individuals %>% group_by(Cluster) %>% summarise(id = paste(unique(id), collapse = ", ")) %>%
   data.frame() %>% mutate(genotype2 = paste0('x', Cluster)) %>% dplyr::select(-Cluster)
-
+nrow(genotype_data)
 
 # visualise groups 
 # Expand the list column into individual rows

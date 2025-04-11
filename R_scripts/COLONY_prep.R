@@ -28,18 +28,12 @@ colony_data <- function(genind_obj) {
   
   input_name <- deparse(substitute(genind_obj))
   
-  
-  
-  
   ## Calculating allelic dropout rate - these estimates are off because of subpop structure
   # Where allelic dropout is inferred from reduced FreqHets compared to homozygous frequencies
   # allelic_dropout_rate <- 1 - genotype_data$FreqHets / (genotype_data$FreqHomRef + genotype_data$FreqHomSnp + genotype_data$FreqHets) 
   # med_allelic_dropout_rate <- median(allelic_dropout_rate, na.rm = TRUE)
   
   hist(genind_obj@other$loc.metrics$AvgPIC )
-  
-  
-  
   
   genotype_matrix <- as.matrix(tab(genind_obj))
   ncol(genotype_matrix)
@@ -130,7 +124,7 @@ colony_data <- function(genind_obj) {
   ((length(unlist(strsplit(colony_data_lines[1], " ")))) - 1)/2
 }
 
-colony_data(data_genind_adult)  #1511 (after more filtering)
+colony_data(data_genind_adult)  #707 (after more filtering)
 colony_data(data_genind_adult_subset1)
 colony_data(data_genind_adult_subset2)
 
@@ -142,7 +136,7 @@ colony_data(data_genind_adult_subset2)
 
 ## adjust marker info
 data1 <- read.table(file = "./data/marker_info_data_genind_adult.txt", header = TRUE, dec = ",", na.strings = c("", ".", "na")) ## replace XXX to document name.
-data2 <- read.table(file = "C:/Users/gerar/OneDrive/1_Work/4_Writing/1_Allee_effects/3_Heron_Platy_ms/Colony/heron_sub1_inb_clones/heron_sub1_inb_clones.ErrorRate", 
+data2 <- read.table(file = "C:/Users/gerar/OneDrive/1_Work/4_Writing/1_Palau genetics mixing/Colony/palau2/palau2.ErrorRate", 
                     header = TRUE, sep = ",", na.strings = c("", ".", "na")) ## replace XXX to document name.
 
 error_rates <- data2 %>% select(MarkerID, DropRateEst)
