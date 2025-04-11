@@ -96,6 +96,17 @@ unique_genotypes <- V(graph)$name  # extract unique genotype names
 clusters <- components(graph)  # get connected components
 group_list <- split(V(graph)$name, clusters$membership)  # group genotypes by component
 length(group_list)
+#remove reps
+#add a '?' to fill short labels
+group_list <- lapply(group_list, function(x) ifelse(grepl("_$", x), paste0(x, "?"), x)) # Add '?' to strings ending with '_'
+group_list1 <- lapply(group_list, function(x) substr(x, 1, nchar(x) - 2)) # Remove last two characters from each element
+group_list2 <- lapply(group_list1, function(x) {
+  unique_elements <- unique(x)  # Remove duplicates within the vector
+  paste(unique_elements, collapse = " ")  # Recombine into a single string
+})  #remove duplicates
+# Convert each list element to a proper character vector
+group_list2 <- lapply(group_list2, function(x) unlist(strsplit(x, " "))) # Split string into vector
+
 
 
 #  checking high hetero for evidence of contamination

@@ -1,17 +1,19 @@
 ## Cervus outputs
 
-## Priorities
-# I may need to also model just against the centre patch because fert between radial lines complicates which fragment actualy fertilised
-# OR just remove pairs where fathers could be many
+## PRIORITES
+#IVE REMOVED OBSERVED UNCERTAIN PAIRWISES COMBOS, BUT I ALSO NEED TO REMOVE THESE FROM THE POSSIBLE COMBINATION
+# I may need to also model just against the centre patch because fert between radial lines complicates which fragment -done
+#    - Ive now done this. It seems the no_zi model is best and the interaction term causes high correlation. Need to keep aseesing 
+#     candiate models
 
-#might need to remove self fert individuals from analysis
+
+#might need to remove self fert individuals from analysis - done
 
 ## Notes
 # apparently C13 is a huge colony
 
 ##INCLUDING ZEROS
 #Best approach so far is to include zeros, test for zeroinflation, then simply. So far, simple model works best
-#I think imputation is working BUTR SEEMS DANGEROUS SO MUCH MISSING DATA, but may need to filter all pairwise crosses for non fragment combinations
 
 ##NOT INCLUDING ZEROS
 #no effect of some just because no data points  e.g angle - need to check
@@ -140,6 +142,29 @@ genetic_dist_ave <- adult_colonies1 %>%
   data.frame()# Remove grouping
 #add onto join_df3
 
+## add father genotype and remove multiple options (need group_list2 in 2a) to run
+# tt1 = tt %>% dplyr::select(genotype, genotype2) %>% rename(genotype.y = genotype)
+# join_df2 = left_join(join_df2, tt1, by = 'genotype.y')
+# Function to determine if a genotype.y is "cert" or "uncert"
+check_cert <- function(position, group_list2) {
+  matched_group <- sapply(group_list2, function(x) position %in% x) # Check which group contains the position
+  if (any(matched_group)) {
+    group_index <- which(matched_group)[1] # Get the first matching group
+    if (length(group_list2[[group_index]]) == 1) {
+      return("cert")  # If only one option, it is certain
+    } else {
+      return("uncert")  # If multiple options exist, it is uncertain
+    }
+  } else {
+    return("uncert")  # If no match found, assume uncertainty
+  }
+}
+# Apply the function to each row in join_df2
+join_df2$cert_status <- mapply(check_cert, join_df2$genotype.y, MoreArgs = list(group_list2 = group_list2))
+head(join_df2)
+join_df2 <- join_df2 %>% dplyr::filter(cert_status == "cert")
+nrow(join_df2)
+
 
 #try normalizing to weight larvae. This means that multiple larvae from the same mother are given less weight.
 # It corrects for more larvae being sequenced by chance.
@@ -163,10 +188,9 @@ points_y_proj <- st_transform(points_y, crs = 32653)
 join_df2$dist <- st_distance(points_x_proj, points_y_proj, by_element = TRUE)
 join_df2$dist_m = as.numeric(join_df2$dist )
 
-#add asycnrony (mum only)
+##add asycnrony (mum only)
 str(join_df2$time)
 join_df2$minutes <- sub(".*:(\\d+)", "\\1", join_df2$time)  %>% as.numeric()# Extract minutes
-
 #join_df2$time <- strptime(join_df2$time, format = "%H:%M") # Convert to time format
 mean(join_df2$minutes, na.rm = T)
 sd(join_df2$minutes, na.rm = T)
@@ -240,7 +264,8 @@ rayleigh.test(angles_circular)  #strong sig eefect
 #unweighted
 (quan <- quantile(join_df2$dist_m, probs=c(0, .25, .5, .83, 1)))
 unname(quan[3])
-#hist(join_df2$dist_m)  #unweighted
+hist(join_df2$dist_m)  #unweighted
+table(join_df2$dist_m)
 #plot(density(join_df2$dist_m))  #unweighted
 quan_66 <- wtd.quantile(join_df2$dist_m, probs = c(0.17, 0.83))
 quan_95 <- wtd.quantile(join_df2$dist_m, probs = c(0.025, 0.975))
@@ -267,8 +292,8 @@ cols <- c("Unweighted" = "#A2CFE3",  # pastel blue
 
 # Overlay weighted and unweighted density plots with matching error bar colours
 pairwise_dist_plot <- ggplot(join_df2, aes(x = dist_m)) +
-  geom_density(aes(fill = "Unweighted", color = "Unweighted"), alpha = 0.3) + # Unweighted density
-  geom_density(aes(weight = normalised_weight, fill = "Weighted", color = "Weighted"), alpha = 0.3) + # Weighted density
+  geom_density(aes(fill = "Unweighted", color = "Unweighted"), alpha = 0.3, bw = 3) + # Unweighted density
+  geom_density(aes(weight = normalised_weight, fill = "Weighted", color = "Weighted"), alpha = 0.3,  bw = 3) + # Weighted density
   geom_errorbarh(aes(y = 0, xmin = lower_66, xmax = upper_66, color = "Unweighted"), 
                  height = 0.0, linetype = "solid", size = 1.5, alpha = 0.5) + # Unweighted error bar
   geom_errorbarh(aes(y = 0, xmin = lower_95, xmax = upper_95, color = "Unweighted"), 
@@ -283,7 +308,7 @@ pairwise_dist_plot <- ggplot(join_df2, aes(x = dist_m)) +
   geom_vline(xintercept = unname(quan_w[3]), color = "#E3A2A8", lty = 2) + # Weighted median line
   scale_fill_manual(values = cols, name = "Density Type") +
   scale_color_manual(values = cols, name = "Density Type") +
-  coord_cartesian(ylim = c(0.0, 0.08)) +
+  coord_cartesian(ylim = c(0.0, 0.11)) +
   scale_x_continuous(name = "Distance (m)") +
   scale_y_continuous(name = "Probability density") +
   theme_sleek2() +
@@ -369,8 +394,27 @@ str(join_df2)
 ## prepare data fro analysis of every pairwise combination as counts. 
 unique_dams <- unique(data1$id, na.rm = T)   #all dams sampled for fert
 unique_sires <- unique(na.omit(meta2$genotype))
-#create all pairwise combinations
+#create all pairwise combinations. Only sample mums 
 all_pairs <- expand.grid(genotype.x = unique_dams, genotype.y = unique_sires)
+#remove uncertain combinations
+# check_cert <- function(position, group_list2) {
+#   matched_group <- sapply(group_list2, function(x) position %in% x) # Check which group contains the position
+#   if (any(matched_group)) {
+#     group_index <- which(matched_group)[1] # Get the first matching group
+#     if (length(group_list2[[group_index]]) == 1) {
+#       return("cert")  # If only one option, it is certain
+#     } else {
+#       return("uncert")  # If multiple options exist, it is uncertain
+#     }
+#   } else {
+#     return("uncert")  # If no match found, assume uncertainty
+#   }
+# }
+# Apply the function to each row in join_df2
+all_pairs$cert_status <- mapply(check_cert, all_pairs$genotype.y, MoreArgs = list(group_list2 = group_list2))
+head(all_pairs)
+all_pairs <- all_pairs %>% dplyr::filter(cert_status == "cert")
+nrow(all_pairs)
 #observed_crosses <- join_df2 %>% dplyr::select(genotype.x, genotype.y) %>% mutate(count = 1)
 #observed_crosses_aggregated <- join_df2 %>% group_by(genotype.x, genotype.y) %>% summarise(count = n(), .groups = 'drop') #agreegate multiple pairwise crosses
 observed_crosses_aggregated <- join_df2 %>% group_by(genotype.x, genotype.y, syncr) %>% summarise(count = n(), .groups = 'drop')
@@ -545,10 +589,16 @@ join_df5 = join_df5 %>% filter(gen_dist > 200)  #remove slefing combinations
 
 
 library(GGally)
-join_df5 %>%  dplyr::select(dist_m, cos_ang, total_mean_dia.y ,(gen_dist)) %>% ggpairs() # Matrix plots of variables. all the combinations of the data
-join_df5$dist_m_c <- scale(join_df5$dist_m, center = TRUE, scale = FALSE) # Center distance
-join_df5$cos_ang_c <- scale(join_df5$cos_ang, center = TRUE, scale = FALSE) # Center angle
-join_df5$gen_dist_log <- log(join_df5$gen_dist)
+join_df5 %>%  dplyr::select(dist_m, cos_ang, total_mean_dia.y , gen_dist) %>% ggpairs() # Matrix plots of variables. all the combinations of the data
+cor(dplyr::select(join_df5, dist_m, cos_ang, total_mean_dia.y, gen_dist), use = "complete.obs")
+join_df5$dist_m_c <- as.vector(scale(join_df5$dist_m, center = TRUE, scale = TRUE)) # Center distance
+join_df5$cos_ang_c <- as.vector(scale(join_df5$cos_ang, center = TRUE, scale = TRUE)) # Center angle
+#join_df5$total_mean_dia_y_c <- scale(join_df5$total_mean_dia.y, center = TRUE, scale = FALSE) # Center angle
+#join_df5$gen_dist_log <- log(join_df5$gen_dist)
+cor(dplyr::select(join_df5, dist_m_c, cos_ang_c, total_mean_dia.y, gen_dist), use = "complete.obs")
+ggpairs(join_df5 %>% dplyr::select(dist_m_c, cos_ang_c, total_mean_dia.y, gen_dist))
+
+
 
 
 join_df5$weight <- join_df5$sum_count / join_df5$suc  # Define the sampling fraction as a weight
@@ -562,55 +612,95 @@ plot(join_df5$final_count ~ join_df5$gen_dist)
 plot(join_df5$final_count ~ join_df5$gen_dist_log)  #made it worse
 plot(join_df5$final_count ~ join_df5$syncr)  #
 
-#box-Cox
-join_df5$final_count_shifted <- join_df5$final_count + 0.1  # Shift response to be positive
-bc <- boxcox(lm(final_count_shifted ~ gen_dist_adj, data = join_df5), lambda = seq(-2, 2, by = 0.1))
-best_lambda <- bc$x[which.max(bc$y)]
-print(best_lambda)
-if (best_lambda == 0) {
-  join_df5$gen_dist_bc <- log(join_df5$gen_dist_adj)  # Log transform
-} else {
-  join_df5$gen_dist_bc <- (join_df5$gen_dist_adj^best_lambda - 1) / best_lambda  # Box-Cox
-}
+# #box-Cox
+# join_df5$final_count_shifted <- join_df5$final_count + 0.1  # Shift response to be positive
+# bc <- boxcox(lm(final_count_shifted ~ gen_dist_adj, data = join_df5), lambda = seq(-2, 2, by = 0.1))
+# best_lambda <- bc$x[which.max(bc$y)]
+# print(best_lambda)
+# if (best_lambda == 0) {
+#   join_df5$gen_dist_bc <- log(join_df5$gen_dist_adj)  # Log transform
+# } else {
+#   join_df5$gen_dist_bc <- (join_df5$gen_dist_adj^best_lambda - 1) / best_lambda  # Box-Cox
+#}
 
 
 
-#ZINB
-global_model <- glmmTMB(final_count ~ dist_m_c  * cos_ang_c + total_mean_dia.y + poly(gen_dist, 2) + offset(log(suc + 1e-6)) ,  
+#1) ZINB (run all zero-inflated models)
+global_mod_nb_zsuc <- glmmTMB(final_count ~ dist_m_c  * cos_ang_c + total_mean_dia.y + poly(gen_dist, 2) + offset(log(suc + 1e-6)) ,  
                         ziformula = ~ suc,  # Include zero-inflation
                         family = nbinom2,
                         data = join_df5,
-                        #weights = weight,
                         na.action = na.fail)  # Ensure NA handling works with MuMIn
 
-global_model_1 <- glmmTMB(final_count ~ dist_m_c  * cos_ang_c + total_mean_dia.y + poly(gen_dist, 2) + offset(log(suc + 1e-6)) ,  
+global_mod_nb_z1 <- glmmTMB(final_count ~ dist_m_c  * cos_ang_c + total_mean_dia.y + poly(gen_dist, 2) + offset(log(suc + 1e-6)) ,  
                         ziformula = ~ 1,  # Include zero-inflation
                         family = nbinom2,
                         data = join_df5,
                         #weights = weight,
                         na.action = na.fail)  # Ensure NA handling works with MuMIn
 
-global_model_nozero <- glmmTMB(final_count ~ dist_m_c  * cos_ang_c + total_mean_dia.y + poly(gen_dist, 2) + offset(log(suc + 1e-6)) ,  
+global_mod_nb_nozi <- glmmTMB(final_count ~ dist_m_c  * cos_ang_c + total_mean_dia.y + poly(gen_dist, 2) + offset(log(suc + 1e-6)) ,  
                         #ziformula = ~ 1,  # Include zero-inflation
                         family = nbinom2,
                         data = join_df5,
                         #weights = weight,
                         na.action = na.fail)  # Ensure NA handling works with MuMIn
 
-AIC(global_model, global_model_1, global_model_nozero)
+global_mod_poi_zsuc <- glmmTMB(final_count ~ dist_m_c * cos_ang_c + total_mean_dia.y + poly(gen_dist, 2) + offset(log(suc + 1e-6)),
+                                       ziformula = ~ suc,
+                                       family = poisson,
+                                       data = join_df5,
+                                       na.action = na.fail)
 
-summary(global_model)
+global_mod_poi_z1 <- glmmTMB(final_count ~ dist_m_c * cos_ang_c + total_mean_dia.y + poly(gen_dist, 2) + offset(log(suc + 1e-6)),
+                                             ziformula = ~ 1,
+                                             family = poisson,
+                                             data = join_df5,
+                                             na.action = na.fail)
 
-performance::check_collinearity(global_model)
+global_mod_poi_nozi <- glmmTMB(final_count ~ dist_m_c * cos_ang_c + total_mean_dia.y + poly(gen_dist, 2) + offset(log(suc + 1e-6)),
+                                      family = poisson,
+                                      data = join_df5,
+                                      na.action = na.fail)
+
+
+AIC(global_mod_nb_zsuc, global_mod_nb_z1, global_mod_nb_nozi, global_mod_poi_zsuc, global_mod_poi_z1, global_mod_poi_nozi)
+# global_mod_nb_zsuc  10 194.1629
+# global_mod_nb_z1     9 193.2099
+# global_mod_nb_nozi   8 191.2099
+# global_mod_poi_zsuc  9       NA
+# global_mod_poi_z1    8 208.8801
+# global_mod_poi_nozi  7 223.8016
+
+#Given Martin 2006 incates theoretical inclusion of zi based on false zero, looks like global_mod_nb_z1 is best.
+#Howver, no idfference compared to no zi model in dredge so may have to go this one.
+summary(global_mod_nb_z1)
+
+performance::check_collinearity(global_mod_nb_nozi)  #high correlation caused by interaction
+sum(resid(mod_zinb, type = "pearson")^2) / (nrow(data1) - length(coef(mod_zinb))) # (overdispsrion glm Zuur)
+library(RVAideMemoire) # GLMM overdispersion test
+library(performance)
+# check_overdispersion(md1)  #only for count data
+plot(fitted(global_model_red_add), resid(global_model_red_add)) # fitted vs residuals
+abline(h = 0)
+performance::r2(global_model_poisson)
+icc(global_model_red_add) # Intraclass Correlation Coefficient
+check_zeroinflation(global_mod_nb_nozi)
+check_singularity(global_mod_nb_nozi)
+check_model(global_mod_nb_nozi)
+library(DHARMa)
+sim_res <- simulateResiduals(global_mod_nb_nozi)
+testOutliers(sim_res, type = "bootstrap") #double checkoutliers
+plot(sim_res)
 
 
 #test
-# global_model <- glmmTMB(final_count ~ dist_m_c  + cos_ang_c  + poly(gen_dist,1) + offset(log(suc + 1e-6)) ,  
-#                         ziformula = ~ suc,  # Include zero-inflation
-#                         family = nbinom2,
-#                         data = join_df5,
-#                         #weights = weight,
-#                         na.action = na.fail)  # Ensure NA handling works with MuMIn
+global_mod_nb_nozi <- glmmTMB(final_count ~ dist_m_c  + cos_ang_c + total_mean_dia.y + poly(gen_dist, 2) + offset(log(suc + 1e-6)) ,  
+                              #ziformula = ~ 1,  # Include zero-inflation
+                              family = nbinom2,
+                              data = join_df5,
+                              #weights = weight,
+                              na.action = na.fail)  # Ensure NA handling works with MuMIn
 summary(global_model)
 
 AIC(global_model)
@@ -643,7 +733,7 @@ ggplot() +
 hist(join_df5$final_count)
 
 AIC(global_model)
-dredged_models <- dredge(global_model, rank = "AIC", fixed = ~cond(offset(log(suc + 1e-6))))
+dredged_models <- dredge(global_mod_nb_nozi, rank = "AIC", fixed = ~cond(offset(log(suc + 1e-6))))
 (best_models <- subset(dredged_models, delta < 2))  # Select models within ΔAIC < 2
 
 
@@ -652,6 +742,7 @@ extract_models <- get.models(dredged_models, subset = delta < 2)
 best = extract_models[1:3] #manually extract best 4
 model_avg <- model.avg(best, revised.var = TRUE)  # Model averaging across them
 summary(model_avg)
+#use full average
 
 
 #best model is dist_m * cos_ang 
