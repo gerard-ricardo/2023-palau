@@ -1,6 +1,6 @@
 # clones and genetic relatedness------------------------------------------------------------------
 
-#SEE COLONY BESTCLONE FOR CLONE ANALYSIS.  SAME AS SMOUSE BUT MORE DEFENSIABLE (EXCEPT C5_2)
+#SEE COLONY BESTCLONE FOR CLONE ANALYSIS (Palau2).  SAME AS SMOUSE BUT MORE DEFENSIABLE (EXCEPT C5_2)
 
 
 

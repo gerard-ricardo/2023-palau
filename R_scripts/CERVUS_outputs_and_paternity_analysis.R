@@ -1,7 +1,11 @@
 ## Cervus outputs
 
+
+
 ## PRIORITES
-#IVE REMOVED OBSERVED UNCERTAIN PAIRWISES COMBOS, BUT I ALSO NEED TO REMOVE THESE FROM THE POSSIBLE COMBINATION
+#Still trying to find best model. Make sure to check effect plots too. 
+
+
 # I may need to also model just against the centre patch because fert between radial lines complicates which fragment -done
 #    - Ive now done this. It seems the no_zi model is best and the interaction term causes high correlation. Need to keep aseesing 
 #     candiate models
@@ -51,7 +55,11 @@ library(dplyr)
 library(reshape2)
 library(spatstat)
 library(glmmTMB)
+library(RVAideMemoire) # GLMM overdispersion test
+library(performance)
+library(DHARMa)
 library(MuMIn)
+library(effects)
 source("https://raw.githubusercontent.com/gerard-ricardo/data/master/theme_sleek2") # set theme in code
 source("https://raw.githubusercontent.com/gerard-ricardo/data/master/theme_sleek1") # set theme in code
 source("https://raw.githubusercontent.com/gerard-ricardo/data/master/theme_sleek3") # set theme in code
@@ -414,7 +422,7 @@ all_pairs <- expand.grid(genotype.x = unique_dams, genotype.y = unique_sires)
 all_pairs$cert_status <- mapply(check_cert, all_pairs$genotype.y, MoreArgs = list(group_list2 = group_list2))
 head(all_pairs)
 all_pairs <- all_pairs %>% dplyr::filter(cert_status == "cert")
-nrow(all_pairs)
+nrow(all_pairs)  #270 possible combination
 #observed_crosses <- join_df2 %>% dplyr::select(genotype.x, genotype.y) %>% mutate(count = 1)
 #observed_crosses_aggregated <- join_df2 %>% group_by(genotype.x, genotype.y) %>% summarise(count = n(), .groups = 'drop') #agreegate multiple pairwise crosses
 observed_crosses_aggregated <- join_df2 %>% group_by(genotype.x, genotype.y, syncr) %>% summarise(count = n(), .groups = 'drop')
@@ -495,12 +503,12 @@ trunc_nb <- zerotrunc(count ~ scale(dist_m) + cos_ang , data = df_pos_only, dist
 summary(trunc_nb) 
 AIC(trunc_pois, trunc_nb)
 
-# trunc_pois_wei <- zerotrunc(count ~ scale(dist_m) + scale(ang_rel_ds), data = df_pos_only, 
-#                         dist = "poisson", weights = suc)
-# summary(trunc_pois_wei)
-# trunc_nb_wei  <- zerotrunc(count ~ scale(dist_m) + scale(ang_rel_ds), data = df_pos_only, 
-#                       dist = "negbin", weights = suc)
-# summary(trunc_nb_wei)
+trunc_pois_wei <- zerotrunc(count ~ scale(dist_m) + scale(ang_rel_ds), data = df_pos_only,
+                        dist = "poisson", weights = suc)
+summary(trunc_pois_wei)
+trunc_nb_wei  <- zerotrunc(count ~ scale(dist_m) + scale(ang_rel_ds), data = df_pos_only,
+                      dist = "negbin", weights = suc)
+summary(trunc_nb_wei)
 trunc_pois_offset <- zerotrunc(count ~ scale(dist_m) + cos_ang + offset(log(suc)), 
                                data = df_pos_only, dist = "poisson")
 summary(trunc_pois_offset)
@@ -591,25 +599,23 @@ join_df5 = join_df5 %>% filter(gen_dist > 200)  #remove slefing combinations
 library(GGally)
 join_df5 %>%  dplyr::select(dist_m, cos_ang, total_mean_dia.y , gen_dist) %>% ggpairs() # Matrix plots of variables. all the combinations of the data
 cor(dplyr::select(join_df5, dist_m, cos_ang, total_mean_dia.y, gen_dist), use = "complete.obs")
-join_df5$dist_m_c <- as.vector(scale(join_df5$dist_m, center = TRUE, scale = TRUE)) # Center distance
-join_df5$cos_ang_c <- as.vector(scale(join_df5$cos_ang, center = TRUE, scale = TRUE)) # Center angle
+join_df5$dist_m_c <- as.vector(scale(join_df5$dist_m, center = TRUE, scale = FALSE)) # Center distance
+join_df5$cos_ang_c <- as.vector(scale(join_df5$cos_ang, center = TRUE, scale = FALSE)) # Center angle
 #join_df5$total_mean_dia_y_c <- scale(join_df5$total_mean_dia.y, center = TRUE, scale = FALSE) # Center angle
 #join_df5$gen_dist_log <- log(join_df5$gen_dist)
 cor(dplyr::select(join_df5, dist_m_c, cos_ang_c, total_mean_dia.y, gen_dist), use = "complete.obs")
 ggpairs(join_df5 %>% dplyr::select(dist_m_c, cos_ang_c, total_mean_dia.y, gen_dist))
-
-
-
 
 join_df5$weight <- join_df5$sum_count / join_df5$suc  # Define the sampling fraction as a weight
 join_df5$weight <- ifelse(join_df5$sum_count == join_df5$suc, 
                           1,  # Assign weight of 1 when sum_count == suc
                           join_df5$sum_count / join_df5$suc)  # Otherwise, use the existing formula
 
+plot(join_df5$final_count ~ join_df5$dist_m_c)
 plot(join_df5$final_count ~ join_df5$total_mean_dia.y)
-plot(join_df5$final_count ~ join_df5$cos_ang)
+plot(join_df5$final_count ~ join_df5$cos_ang_c)
 plot(join_df5$final_count ~ join_df5$gen_dist)
-plot(join_df5$final_count ~ join_df5$gen_dist_log)  #made it worse
+#plot(join_df5$final_count ~ join_df5$gen_dist_log)  #made it worse
 plot(join_df5$final_count ~ join_df5$syncr)  #
 
 # #box-Cox
@@ -677,64 +683,69 @@ AIC(global_mod_nb_zsuc, global_mod_nb_z1, global_mod_nb_nozi, global_mod_poi_zsu
 summary(global_mod_nb_z1)
 
 performance::check_collinearity(global_mod_nb_nozi)  #high correlation caused by interaction
-sum(resid(mod_zinb, type = "pearson")^2) / (nrow(data1) - length(coef(mod_zinb))) # (overdispsrion glm Zuur)
-library(RVAideMemoire) # GLMM overdispersion test
-library(performance)
-# check_overdispersion(md1)  #only for count data
-plot(fitted(global_model_red_add), resid(global_model_red_add)) # fitted vs residuals
+sum(resid(global_mod_nb_nozi, type = "pearson")^2) / (nrow(join_df5) - length(coef(global_mod_nb_nozi))) # (overdispsrion glm Zuur)
+plot(fitted(global_mod_nb_nozi), resid(global_mod_nb_nozi)) # fitted vs residuals
 abline(h = 0)
-performance::r2(global_model_poisson)
-icc(global_model_red_add) # Intraclass Correlation Coefficient
-check_zeroinflation(global_mod_nb_nozi)
-check_singularity(global_mod_nb_nozi)
-check_model(global_mod_nb_nozi)
-library(DHARMa)
+performance::r2(global_mod_nb_nozi)  #doesn't work 
+icc(global_mod_nb_nozi) # Intraclass Correlation Coefficient
+check_zeroinflation(global_mod_nb_nozi)  #ok
+check_singularity(global_mod_nb_nozi)  #ok
+#QQplot and resisduals 
 sim_res <- simulateResiduals(global_mod_nb_nozi)
 testOutliers(sim_res, type = "bootstrap") #double checkoutliers
-plot(sim_res)
+plot(sim_res)  #looks ok
+check_model(global_mod_nb_nozi)  #failed on collinearity, homogenity of variance and dispersion/zero-infaltion
+# High collinearity detected due to interaction terms; overdispersion present; r-squared and ICC not applicable; 
+# zero-inflation and singularity checks OK; check_model flagged collinearity, homogeneity of variance, and 
+# dispersion/zero-inflation issues; outlier check via DHARMa and visual inspection of residuals appear acceptable.
 
 
-#test
-global_mod_nb_nozi <- glmmTMB(final_count ~ dist_m_c  + cos_ang_c + total_mean_dia.y + poly(gen_dist, 2) + offset(log(suc + 1e-6)) ,  
-                              #ziformula = ~ 1,  # Include zero-inflation
-                              family = nbinom2,
-                              data = join_df5,
-                              #weights = weight,
-                              na.action = na.fail)  # Ensure NA handling works with MuMIn
-summary(global_model)
-
-AIC(global_model)
-
-join_df5 %>% dplyr::select(final_count, gen_dist)
-
-
-# Generate new data with dist_m varying and all other predictors held at their mean
-new_data <- data.frame(
-  gen_dist = seq(min(join_df5$gen_dist), max(join_df5$gen_dist), length.out = 100),
-  cos_ang_c = mean(join_df5$cos_ang_c, na.rm = TRUE),
-  total_mean_dia.y = mean(join_df5$total_mean_dia.y, na.rm = TRUE),
-  dist_m_c = mean(join_df5$dist_m_c, na.rm = TRUE),
-  suc = mean(join_df5$suc, na.rm = TRUE),  # Offset term
-  weight = mean(join_df5$weight, na.rm = TRUE)  # Ensure weight is included
-)
-preds <- predict(global_model, newdata = new_data, type = "response", se.fit = TRUE)
-# Store predictions and confidence intervals
-new_data$preds <- preds$fit
-new_data$lower <- preds$fit - 1.96 * preds$se.fit  # 95% CI lower bound
-new_data$upper <- preds$fit + 1.96 * preds$se.fit  # 95% CI upper bound
-
-ggplot() +
-  geom_point(join_df5, mapping = aes(y = final_count, x = gen_dist))+
-  geom_line(new_data, mapping = aes(x = gen_dist, y = preds )) +
-  geom_ribbon(new_data, mapping = aes(x = gen_dist, ymin = lower, ymax = upper),fill = 'blue', alpha = 0.1) +  # Confidence intervals
-  labs(x = "Distance (m)", y = "Final Count") +
-  theme_minimal()
-
-hist(join_df5$final_count)
-
-AIC(global_model)
+# model compare
 dredged_models <- dredge(global_mod_nb_nozi, rank = "AIC", fixed = ~cond(offset(log(suc + 1e-6))))
-(best_models <- subset(dredged_models, delta < 2))  # Select models within ΔAIC < 2
+(best_models <- subset(dredged_models, delta < 4))  # Select models within ΔAIC < 2
+
+#seems to sometimes change
+best_mod <- glmmTMB(final_count ~ dist_m_c  * cos_ang_c    + offset(log(suc + 1e-6)) ,  
+                                ziformula = ~ 0,  # Include zero-inflation
+                                family = nbinom2,
+                                data = join_df5,
+                                #weights = weight,
+                                na.action = na.fail)  # Ensure NA handling works with MuMIn
+
+sum(resid(best_mod, type = "pearson")^2) / (nrow(join_df5) - length(coef(best_mod))) # (overdispsrion glm Zuur)
+# check_overdispersion(md1)  #only for count data
+plot(fitted(best_mod), resid(best_mod)) # fitted vs residuals
+abline(h = 0)
+check_zeroinflation(best_mod)
+check_singularity(best_mod)
+sim_res <- simulateResiduals(best_mod)
+testOutliers(sim_res, type = "bootstrap") #double checkoutliers
+plot(sim_res)
+check_model(best_mod)
+#best model fails a number of tests
+
+best_add <- glmmTMB(final_count ~ dist_m_c  + cos_ang_c   + poly(gen_dist,2) + offset(log(suc + 1e-6)) ,  
+                    ziformula = ~ 0,  # Include zero-inflation
+                    family = nbinom2,
+                    data = join_df5,
+                    #weights = weight,
+                    na.action = na.fail)  # Ensure NA handling works with MuMIn
+
+
+sum(resid(best_add, type = "pearson")^2) / (nrow(data1) - length(coef(best_add))) # (overdispsrion glm Zuur)
+# check_overdispersion(md1)  #only for count data
+plot(fitted(best_add), resid(best_add)) # fitted vs residuals
+abline(h = 0)
+check_zeroinflation(best_add)
+check_singularity(best_add)
+check_model(best_add)
+check_homogeneity(best_add)
+
+sim_res <- simulateResiduals(best_add)
+testOutliers(sim_res, type = "bootstrap") #double checkoutliers
+plot(sim_res)
+check_model(best_add)
+#still failing on homog and misspeficed dispersion/zero-inflation
 
 
 #model averaging (not working because top 4 cant be extracted)
@@ -745,84 +756,17 @@ summary(model_avg)
 #use full average
 
 
-#best model is dist_m * cos_ang 
-
-# global_model_reduced <- glmmTMB(final_count ~ dist_m_c  * cos_ang_c   + offset(log(suc + 1e-6)) ,  
-#                             ziformula = ~ suc,  # Include zero-inflation
-#                             family = nbinom2,
-#                             data = join_df5,
-#                             #weights = weight,
-#                             na.action = na.fail)  # Ensure NA handling works with MuMIn
-
-global_model_red_add <- glmmTMB(final_count ~ dist_m_c  + cos_ang_c   + poly(gen_dist,2) + offset(log(suc + 1e-6)) ,  
-                                ziformula = ~ suc,  # Include zero-inflation
-                                family = nbinom2,
-                                data = join_df5,
-                                #weights = weight,
-                                na.action = na.fail)  # Ensure NA handling works with MuMIn
-
-summary(global_model_red_add)
-AIC(global_model_reduced, global_model_red_add)  #choose simpler because with 2 delta
-
-
-
-sum(resid(mod_zinb, type = "pearson")^2) / (nrow(data1) - length(coef(mod_zinb))) # (overdispsrion glm Zuur)
-library(RVAideMemoire) # GLMM overdispersion test
-library(performance)
-# check_overdispersion(md1)  #only for count data
-plot(fitted(global_model_red_add), resid(global_model_red_add)) # fitted vs residuals
-abline(h = 0)
-performance::r2(global_model_poisson)
-icc(global_model_red_add) # Intraclass Correlation Coefficient
-check_zeroinflation(global_model_poisson)
-check_singularity(global_model_poisson)
-check_model(global_model_poisson)
-library(DHARMa)
-sim_res <- simulateResiduals(global_model_poisson)
-testOutliers(sim_res, type = "bootstrap") #double checkoutliers
-plot(sim_res)
-
-# #remove missing and structural
-# join_df4 <- join_df4 %>%
-#   filter(!(zero_type %in% c("structural_zero", "missing_zero"))) # Keep only rows that are true_zero or positive_count
-
-library(ggplot2)
-library(effects)
-
-# Plot effects
-plot(allEffects(global_model_red_add))
-
-# First, create prediction grid
-# Get ranges and means of your predictors
+## plot effects
+#for a single model
 pred_data <- with(join_df5, {
   # Create sequences for each predictor
   dist_seq <- seq(min(dist_m_c), max(dist_m_c), length.out = 100)
   ang_seq <- seq(min(cos_ang_c), max(cos_ang_c), length.out = 100)
   gen_seq <- seq(min(gen_dist), max(gen_dist), length.out = 100)
   
-  # Create three separate prediction data frames, one for each effect
-  # Each holds other variables at their means
-  dist_grid <- expand.grid(
-    dist_m_c = dist_seq,
-    cos_ang_c = mean(cos_ang_c),
-    gen_dist = mean(gen_dist),
-    suc = mean(suc)
-  )
-  
-  ang_grid <- expand.grid(
-    dist_m_c = mean(dist_m_c),
-    cos_ang_c = ang_seq,
-    gen_dist = mean(gen_dist),
-    suc = mean(suc)
-  )
-  
-  gen_grid <- expand.grid(
-    dist_m_c = mean(dist_m_c),
-    cos_ang_c = mean(cos_ang_c),
-    gen_dist = gen_seq,
-    suc = mean(suc)
-  )
-  
+  dist_grid <- expand.grid(dist_m_c = dist_seq,cos_ang_c = mean(cos_ang_c),gen_dist = mean(gen_dist),suc = mean(suc))
+  ang_grid <- expand.grid(dist_m_c = mean(dist_m_c),cos_ang_c = ang_seq,gen_dist = mean(gen_dist),suc = mean(suc))
+  gen_grid <- expand.grid(dist_m_c = mean(dist_m_c),cos_ang_c = mean(cos_ang_c),gen_dist = gen_seq,suc = mean(suc))
   list(dist = dist_grid, ang = ang_grid, gen = gen_grid)
 })
 
@@ -837,14 +781,10 @@ get_predictions <- function(newdata, model) {
 }
 
 # Get predictions for each effect
-dist_pred <- cbind(pred_data$dist, get_predictions(pred_data$dist, global_model_red_add))
-ang_pred <- cbind(pred_data$ang, get_predictions(pred_data$ang, global_model_red_add))
-gen_pred <- cbind(pred_data$gen, get_predictions(pred_data$gen, global_model_red_add))
+dist_pred <- cbind(pred_data$dist, get_predictions(pred_data$dist, best_add))
+ang_pred <- cbind(pred_data$ang, get_predictions(pred_data$ang, best_add))
+gen_pred <- cbind(pred_data$gen, get_predictions(pred_data$gen, best_add))
 
-# Create plots
-library(ggplot2)
-
-# Distance effect plot
 # Distance effect plot
 p1 <- ggplot(dist_pred, aes(x = dist_m_c)) +
   geom_ribbon(aes(ymin = lwr, ymax = upr), alpha = 0.2) +
@@ -882,6 +822,78 @@ p3 <- ggplot(gen_pred, aes(x = gen_dist)) +
 # Since we have 3 plots, let's arrange them in a 2x2 grid with the last spot empty
 grid.arrange(
   p1, p2, p3, 
+  layout_matrix = rbind(c(1,2), c(3,NA)),
+  widths = c(1,1),
+  heights = c(1,1)
+)
+
+##Model averaged plot
+
+## plot effects for model averaged model
+# For model averaged predictions, we need to average the predictions from the component models
+pred_data_avg <- with(join_df5, {
+  # Create sequences for each predictor
+  dist_seq <- seq(min(dist_m_c), max(dist_m_c), length.out = 100)
+  ang_seq <- seq(min(cos_ang_c), max(cos_ang_c), length.out = 100)
+  gen_seq <- seq(min(gen_dist), max(gen_dist), length.out = 100)
+  
+  dist_grid <- expand.grid(dist_m_c = dist_seq, cos_ang_c = mean(cos_ang_c), gen_dist = mean(gen_dist), suc = mean(suc))
+  ang_grid <- expand.grid(dist_m_c = mean(dist_m_c), cos_ang_c = ang_seq, gen_dist = mean(gen_dist), suc = mean(suc))
+  gen_grid <- expand.grid(dist_m_c = mean(dist_m_c), cos_ang_c = mean(cos_ang_c), gen_dist = gen_seq, suc = mean(suc))
+  list(dist = dist_grid, ang = ang_grid, gen = gen_grid)
+})
+
+# Get model averaged predictions with confidence intervals
+get_predictions_avg <- function(newdata, model_avg) {
+  pred <- predict(model_avg, newdata = newdata, type = "link", se.fit = TRUE)
+  # Transform predictions back to response scale
+  fit <- exp(pred$fit)
+  upr <- exp(pred$fit + 1.96 * pred$se.fit)
+  lwr <- exp(pred$fit - 1.96 * pred$se.fit)
+  data.frame(fit = fit, lwr = lwr, upr = upr)
+}
+
+# Get predictions for each effect using the averaged model
+dist_pred_avg <- cbind(pred_data_avg$dist, get_predictions_avg(pred_data_avg$dist, model_avg))
+ang_pred_avg <- cbind(pred_data_avg$ang, get_predictions_avg(pred_data_avg$ang, model_avg))
+gen_pred_avg <- cbind(pred_data_avg$gen, get_predictions_avg(pred_data_avg$gen, model_avg))
+
+# Distance effect plot (averaged)
+p1_avg <- ggplot(dist_pred_avg, aes(x = dist_m_c)) +
+  geom_ribbon(aes(ymin = lwr, ymax = upr), alpha = 0.2) +
+  geom_line(aes(y = fit)) +
+  geom_point(data = join_df5, aes(y = final_count), alpha = 0.2) +
+  theme_sleek2() +
+  labs(x = "Distance (centered)",
+       y = "Predicted count",
+       title = "A") +
+  theme(plot.title = element_text(face = "bold", size = 16, hjust = -0.1))
+
+# Angle effect plot (averaged)
+p2_avg <- ggplot(ang_pred_avg, aes(x = cos_ang_c)) +
+  geom_ribbon(aes(ymin = lwr, ymax = upr), alpha = 0.2) +
+  geom_line(aes(y = fit)) +
+  geom_point(data = join_df5, aes(y = final_count), alpha = 0.2) +
+  theme_sleek2() +
+  labs(x = "Cosine angle (centered)",
+       y = "Predicted count",
+       title = "B") +
+  theme(plot.title = element_text(face = "bold", size = 16, hjust = -0.1))
+
+# Genetic distance effect plot (averaged)
+p3_avg <- ggplot(gen_pred_avg, aes(x = gen_dist)) +
+  geom_ribbon(aes(ymin = lwr, ymax = upr), alpha = 0.2) +
+  geom_line(aes(y = fit)) +
+  geom_point(data = join_df5, aes(y = final_count), alpha = 0.2) +
+  theme_sleek2() +
+  labs(x = "Genetic distance",
+       y = "Predicted count",
+       title = "C") +
+  theme(plot.title = element_text(face = "bold", size = 16, hjust = -0.1))
+
+# Arrange plots with better layout
+grid.arrange(
+  p1_avg, p2_avg, p3_avg,
   layout_matrix = rbind(c(1,2), c(3,NA)),
   widths = c(1,1),
   heights = c(1,1)
