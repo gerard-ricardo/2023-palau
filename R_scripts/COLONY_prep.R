@@ -1,27 +1,40 @@
 # COLONY formatting -------------------------------------------------------
-data_genind_adult  #82 x 10717 
 
-# (optional) filtering
-hist(data_genind_adult@other$loc.metrics$CallRate)
-hist(data_genind_adult@other$loc.metrics$coverage)
-high_filt = which(data_genind_adult@other$loc.metrics$CallRate > 0.8 & data_genind_adult@other$loc.metrics$coverage > 20)
-data_genind_adult <- data_genind_adult[, high_filt]  #82 x 4221
+##NOTES: This creates files for COLONY. The error rates are first run with priors 'marker_info_...'. Then after it has
+#been run, you can use the colony adjust error rates marker_info_data_genind_adult_corr.txt (at presetn palau6)
+
+#Ok issue found. For Adult run, need these setting. polygamy, no ibreed, with clones, monecious (hemaphrodites). 
+#Quick run PLC, priors off. Important make SURE MALE AND FEMAL CANDIDATES ARE 0
 
 
-genotype_data_means <- data_genind_adult@other$loc.metrics %>%
-  dplyr::select(CallRate:coverage) %>%  # Select the desired range of columns
-  summarise(across(everything(), \(x) mean(x, na.rm = TRUE)))  # Use anonymous function to pass na.rm
 
-genotype_data_means_sub1 <- data_genind_adult_subset1@other$loc.metrics %>%
-  dplyr::select(CallRate:coverage) %>%  # Select the desired range of columns
-  summarise(across(everything(), \(x) mean(x, na.rm = TRUE)))  # Use anonymous function to pass na.rm
+data_genind_adult  #
+data_genind_adult #ddocent without added 81 x 1340
+
+# # (optional) filtering
+# hist(data_genind_adult@other$loc.metrics$CallRate)
+# hist(data_genind_adult@other$loc.metrics$rdepth )
+# high_filt = which(data_genind_adult@other$loc.metrics$CallRate > 0.8 & data_genind_adult@other$loc.metrics$rdepth > 20)
+# data_genind_adult <- data_genind_adult[, high_filt]  #82 x 4221
+# str(data_genind_adult@other$loc.metrics)
+# 
+# #for subsets data
+# genotype_data_means <- data_genind_adult@other$loc.metrics %>%
+#   dplyr::select(CallRate:rdepth) %>%  # Select the desired range of columns
+#   summarise(across(everything(), \(x) mean(x, na.rm = TRUE)))  # Use anonymous function to pass na.rm
+# 
+# genotype_data_means_sub1 <- data_genind_adult_subset1@other$loc.metrics %>%
+#   dplyr::select(CallRate:coverage) %>%  # Select the desired range of columns
+#   summarise(across(everything(), \(x) mean(x, na.rm = TRUE)))  # Use anonymous function to pass na.rm
 
 
 # Calculating the genotyping error rate based on replicate consistency
-genotyping_error_rate <- 1 - genotype_data_means$CallRate
-med_genotyping_error_rate <- median(genotyping_error_rate, na.rm = TRUE)
+(genotyping_error_rate <- 1 - genotype_data_means$CallRate)
+(med_genotyping_error_rate <- median(genotyping_error_rate, na.rm = TRUE))
 #0, mean = 0.01
 
+
+error_rate = 0.05  #try an intial higher error rate to account for known diffs between subsample in smouse
 
 
 colony_data <- function(genind_obj) {
@@ -58,7 +71,7 @@ colony_data <- function(genind_obj) {
   
   # Use default error rates for allelic dropout and other errors (can be modified)
   allelic_dropout_rates <- rep(0.01, num_loci)   #based on REPave  being >99
-  genotyping_error_rates <- rep(0.01, num_loci)  #checked
+  genotyping_error_rates <- rep(error_rate, num_loci)  #checked
   
   # Create a matrix for easier handling
   marker_info <- rbind(
@@ -124,9 +137,9 @@ colony_data <- function(genind_obj) {
   ((length(unlist(strsplit(colony_data_lines[1], " ")))) - 1)/2
 }
 
-colony_data(data_genind_adult)  #707 (after more filtering)
-colony_data(data_genind_adult_subset1)
-colony_data(data_genind_adult_subset2)
+colony_data(data_genind_adult)  
+#colony_data(data_genind_adult_subset1)
+#colony_data(data_genind_adult_subset2)
 
 # split_lines <- strsplit(colony_data_lines, " ")
 # colony_df <- do.call(rbind, lapply(split_lines, function(x) x))
@@ -136,7 +149,7 @@ colony_data(data_genind_adult_subset2)
 
 ## adjust marker info
 data1 <- read.table(file = "./data/marker_info_data_genind_adult.txt", header = TRUE, dec = ",", na.strings = c("", ".", "na")) ## replace XXX to document name.
-data2 <- read.table(file = "C:/Users/gerar/OneDrive/1_Work/4_Writing/1_Palau genetics mixing/Colony/palau2/palau2.ErrorRate", 
+data2 <- read.table(file = "C:/Users/gerar/OneDrive/1_Work/4_Writing/1_Palau genetics mixing/Colony/palau6/palau6.ErrorRate", 
                     header = TRUE, sep = ",", na.strings = c("", ".", "na")) ## replace XXX to document name.
 
 error_rates <- data2 %>% select(MarkerID, DropRateEst)
@@ -151,6 +164,6 @@ updated_data <- data1_t %>% left_join(error_rates, by = "MarkerID") %>% mutate(V
 data1_updated <- as.data.frame(t(updated_data))
 colnames(data1_updated) <- NULL
 rownames(data1_updated) <- NULL
-write.table(data1_updated, file = './data/marker_info_data_genind_adult_subset1_corr.txt', quote = FALSE, row.names = FALSE, col.names = FALSE, sep = " ")
+write.table(data1_updated, file = './data/marker_info_data_genind_adult_corr.txt', quote = FALSE, row.names = FALSE, col.names = FALSE, sep = " ")
 
 
