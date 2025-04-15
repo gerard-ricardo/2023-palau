@@ -1,5 +1,8 @@
 # 2023 palau colony sizes
 
+#missing
+
+
 # 1. Load Libraries ------------------------------------------------------
 library(tidyverse)
 library(ggplot2)
@@ -43,7 +46,8 @@ min(data1$total_mean_dia)
 
 #centre
 data2 = data1[grep("c", data1$ID),]   
-nrow(data2)
+data2$ID
+nrow(data2)  #missing c2, c4, c16
 skewness_value <- e1071::skewness(data2$total_mean_dia) # 0 = no skew
 mean(data2$total_mean_dia)
 median(data2$total_mean_dia)
@@ -104,4 +108,6 @@ p2 <- ggplot(combined_data, aes(x = group, y = total_mean_dia, color = group)) +
   theme(legend.position = "none")  # Remove legend if color is redundant
 
 p2
+
+
 

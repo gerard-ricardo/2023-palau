@@ -29,12 +29,12 @@ data_genind_adult #ddocent without added 81 x 1340
 
 
 # Calculating the genotyping error rate based on replicate consistency
-(genotyping_error_rate <- 1 - genotype_data_means$CallRate)
-(med_genotyping_error_rate <- median(genotyping_error_rate, na.rm = TRUE))
+#(genotyping_error_rate <- 1 - genotype_data_means$CallRate)
+#(med_genotyping_error_rate <- median(genotyping_error_rate, na.rm = TRUE))
 #0, mean = 0.01
 
 
-error_rate = 0.05  #try an intial higher error rate to account for known diffs between subsample in smouse
+error_rate = 0.01  #try an intial higher error rate to account for known diffs between subsample in smouse
 
 
 colony_data <- function(genind_obj) {
@@ -147,9 +147,10 @@ colony_data(data_genind_adult)
 
 
 
-## adjust marker info
+# adjust marker errors ----------------------------------------------------
+
 data1 <- read.table(file = "./data/marker_info_data_genind_adult.txt", header = TRUE, dec = ",", na.strings = c("", ".", "na")) ## replace XXX to document name.
-data2 <- read.table(file = "C:/Users/gerar/OneDrive/1_Work/4_Writing/1_Palau genetics mixing/Colony/palau6/palau6.ErrorRate", 
+data2 <- read.table(file = "C:/Users/gerar/OneDrive/1_Work/4_Writing/1_Palau genetics mixing/Colony/palau14_full_run/palau14_full_run.ErrorRate", 
                     header = TRUE, sep = ",", na.strings = c("", ".", "na")) ## replace XXX to document name.
 
 error_rates <- data2 %>% select(MarkerID, DropRateEst)

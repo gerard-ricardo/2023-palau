@@ -8,7 +8,8 @@
 
 
 library(dbscan)
-
+library(vegan)
+library(cluster)
 
 # adult only ---------------------------------------------------------------------
 
@@ -25,7 +26,7 @@ pca_complete <- data.frame(pca$li, pop = data_gl_adult_unique$pop) # Combine PCA
 
 
 #sig test groups
-library(vegan)
+
 set.seed(123)
 kmeans_result <- kmeans(pca_data, centers = 2, nstart = 25) # Change centers if needed
 metadata <- data.frame(sample_id = rownames(pca_data), group = as.factor(kmeans_result$cluster))
@@ -55,7 +56,6 @@ set.seed(123) # for reproducibility
 set.seed(123) # for reproducibility
 wss <- sapply(1:10, function(k) kmeans(pca_data, centers = k, nstart = 25)$tot.withinss)
 plot(1:10, wss, type = "b", pch = 19, frame = FALSE, xlab = "Number of Clusters", ylab = "Total Within-Cluster Sum of Squares")
-library(cluster)
 sil_scores <- sapply(2:10, function(k) mean(silhouette(kmeans(pca_data, centers = k, nstart = 25)$cluster, dist(pca_data))[, 3]))
 plot(2:10, sil_scores, type = "b", pch = 19, frame = FALSE, xlab = "Number of Clusters", ylab = "Average Silhouette Score")
 
@@ -71,7 +71,7 @@ pca_complete$kmeans_cluster <- as.factor(kmeans_result$cluster)
 # DBSCAN clustering
 # Find the appropriate eps value using kNNdistplot
 kNNdistplot(pca_data, k = 5)  #k-nearest neighbour
-elbow = 9.82 # Place this at the elbow of the line  #9.82, #10.25
+elbow = 13.1 # Place this at the elbow of the line  #9.82, #10.25
 abline(h = elbow, col = "red", lty = 2)  
 
 # # Function to perform DBSCAN clustering and plot results

@@ -88,12 +88,16 @@ data2 %>% group_by(id) %>% summarise(count = n()) #check number of offspring per
 nrow(data2)  #108 larvae
 
 # Import meta data -----------------------------------------------------------
-load("./Rdata/data_gl.RData")  #data_gl.RData
-meta = data_gl@other$ind.metrics
+#load("./data/2023_palau_meta_2.csv")  #orginally found in data_gl.RData
+meta <- read.csv(file = file.path("./data", "2023_palau_meta_2.csv"))
+#write.csv(data_gl@other$ind.metrics, "./data/2023_palau_meta_2.csv", row.names = FALSE) # export metadata to CSV
+
+
+#meta = data_gl@other$ind.metrics
 meta = meta  %>% rename(id2 = id) %>% mutate(id = paste0("X", id2)) 
 meta2 <- meta %>% dplyr::select(c(id, lat, lon, genotype, total_mean_dia ))
 #meta2 <- meta2 %>% mutate(genotype = gsub("_5$", "_05", genotype))
-"X7_05_2" %in% meta2$id
+#"X7_05_2" %in% meta2$id
 
 # Compute pairwise distances
 meta2_2 = meta2 %>% na.omit()
@@ -686,8 +690,6 @@ performance::check_collinearity(global_mod_nb_nozi)  #high correlation caused by
 sum(resid(global_mod_nb_nozi, type = "pearson")^2) / (nrow(join_df5) - length(coef(global_mod_nb_nozi))) # (overdispsrion glm Zuur)
 plot(fitted(global_mod_nb_nozi), resid(global_mod_nb_nozi)) # fitted vs residuals
 abline(h = 0)
-performance::r2(global_mod_nb_nozi)  #doesn't work 
-icc(global_mod_nb_nozi) # Intraclass Correlation Coefficient
 check_zeroinflation(global_mod_nb_nozi)  #ok
 check_singularity(global_mod_nb_nozi)  #ok
 #QQplot and resisduals 
@@ -702,15 +704,16 @@ check_model(global_mod_nb_nozi)  #failed on collinearity, homogenity of variance
 
 # model compare
 dredged_models <- dredge(global_mod_nb_nozi, rank = "AIC", fixed = ~cond(offset(log(suc + 1e-6))))
-(best_models <- subset(dredged_models, delta < 4))  # Select models within ΔAIC < 2
+(best_models <- subset(dredged_models, delta < 2))  # Select models within ΔAIC < 2
 
 #seems to sometimes change
-best_mod <- glmmTMB(final_count ~ dist_m_c  * cos_ang_c    + offset(log(suc + 1e-6)) ,  
+best_mod <- glmmTMB(final_count ~ dist_m_c  + cos_ang_c + poly(gen_dist, 2) + offset(log(suc + 1e-6)) ,  
                                 ziformula = ~ 0,  # Include zero-inflation
                                 family = nbinom2,
                                 data = join_df5,
                                 #weights = weight,
                                 na.action = na.fail)  # Ensure NA handling works with MuMIn
+summary(best_mod)
 
 sum(resid(best_mod, type = "pearson")^2) / (nrow(join_df5) - length(coef(best_mod))) # (overdispsrion glm Zuur)
 # check_overdispersion(md1)  #only for count data
@@ -748,7 +751,7 @@ check_model(best_add)
 #still failing on homog and misspeficed dispersion/zero-inflation
 
 
-#model averaging (not working because top 4 cant be extracted)
+#model averaging
 extract_models <- get.models(dredged_models, subset = delta < 2)
 best = extract_models[1:3] #manually extract best 4
 model_avg <- model.avg(best, revised.var = TRUE)  # Model averaging across them
@@ -758,6 +761,7 @@ summary(model_avg)
 
 ## plot effects
 #for a single model
+best1 = best_mod
 pred_data <- with(join_df5, {
   # Create sequences for each predictor
   dist_seq <- seq(min(dist_m_c), max(dist_m_c), length.out = 100)
@@ -781,9 +785,9 @@ get_predictions <- function(newdata, model) {
 }
 
 # Get predictions for each effect
-dist_pred <- cbind(pred_data$dist, get_predictions(pred_data$dist, best_add))
-ang_pred <- cbind(pred_data$ang, get_predictions(pred_data$ang, best_add))
-gen_pred <- cbind(pred_data$gen, get_predictions(pred_data$gen, best_add))
+dist_pred <- cbind(pred_data$dist, get_predictions(pred_data$dist, best1))
+ang_pred <- cbind(pred_data$ang, get_predictions(pred_data$ang, best1))
+gen_pred <- cbind(pred_data$gen, get_predictions(pred_data$gen, best1))
 
 # Distance effect plot
 p1 <- ggplot(dist_pred, aes(x = dist_m_c)) +

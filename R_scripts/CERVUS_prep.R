@@ -263,7 +263,7 @@ df2_lar = subset(df2, stage!= 'adults')
 df2_adult = subset(df2, stage!= 'larvae')
 
 
-df1a = df2_lar %>% select(., id, genotype )
+df1a = df2_lar %>% dplyr::select(., id, genotype )
 # df1 <- subset(data_wide, stage!= 'adults')  #remove factor treatment level. Use '%in%' to keep.
 # df1$id = df1$sample
 # df1a = left_join(df1, df2_lar, by  = 'id')
@@ -277,13 +277,13 @@ known_dam <- df2_adult %>%
   group_by(genotype) %>%
   slice(1) %>%
   ungroup() %>%
-  select(genotype, id) %>%
+  dplyr::select(genotype, id) %>%
   rename(known_dam = id) %>% data.frame()
 
 # Merge the first replicate back into the original dataframe
 df1b = left_join(df1a, known_dam, by = "genotype")
 nrow(df1b)
-df1 = select(df1b, c(id, known_dam))
+df1 = dplyr::select(df1b, c(id, known_dam))
 df1 <- df1[complete.cases(df1), ] # make sure import matches NA type
 
 
