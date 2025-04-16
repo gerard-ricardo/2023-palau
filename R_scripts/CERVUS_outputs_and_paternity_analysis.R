@@ -73,8 +73,9 @@ source("https://raw.githubusercontent.com/gerard-ricardo/data/master/theme_sleek
                                     "summary_out_docent1.csv"), check.names = T))
 nrow(data1)
 
-data1$Mother.ID <- sub("_5", "_05", data1$Mother.ID)
-data1$Candidate.father.ID <- sub("_5", "_05", data1$Candidate.father.ID)
+data1 <- data1 %>% mutate(across(c(Mother.ID , Candidate.father.ID), ~ gsub("05", ".7", .)))
+#data1$Mother.ID <- sub("_05", "_.7", data1$Mother.ID)
+#data1$Candidate.father.ID <- sub("_05", "_.7", data1$Candidate.father.ID)
 str(data1) # check data type is correc
 #View(data1)
 data1$offsp_id <- as.factor(as.character(data1$Offspring.ID))
@@ -82,15 +83,19 @@ data1$moth_id <- as.factor(as.character(data1$Mother.ID))
 data1$fath_id <- as.factor(as.character(data1$Candidate.father.ID))
 nrow(data1)
 (data1 <- data1[grep("\\*", data1$Trio.confidence), ]) # Filter rows where 'Trio.confidence' contains '*'
+grepl('05', data1$id)
+
+
 data2 = data1 %>% dplyr::select(., c(offsp_id, moth_id, fath_id))
 data2 = data2 %>% mutate(id = moth_id)  #mother
 data2 %>% group_by(id) %>% summarise(count = n()) #check number of offspring per mother
 nrow(data2)  #108 larvae
 
 # Import meta data -----------------------------------------------------------
-#load("./data/2023_palau_meta_2.csv")  #orginally found in data_gl.RData
+#load("./data/2023_palau_meta_2.csv")  #originally found in data_gl.RData
 meta <- read.csv(file = file.path("./data", "2023_palau_meta_2.csv"))
 #write.csv(data_gl@other$ind.metrics, "./data/2023_palau_meta_2.csv", row.names = FALSE) # export metadata to CSV
+meta <- meta %>% mutate(across(c(genotype, id), ~ gsub("05", ".7", .)))
 
 
 #meta = data_gl@other$ind.metrics
@@ -136,8 +141,14 @@ join_df1 <- join_df1 %>% dplyr::select(-id) %>% mutate(id = fath_id)  #reset id 
 join_df2 <- left_join(join_df1, meta2, by = 'id')  #add father lat lon
 nrow(join_df2)
 
+#replace 05 with .7
+join_df2 <- join_df2 %>% mutate(across(c(moth_id, fath_id, id), ~ gsub("05", ".7", .)))
+
+
 #add genetic relatedness (run 2a first)
 adult_colonies1 = adult_colonies_sort
+adult_colonies1 <- adult_colonies1 %>% mutate(across(c(Individual1, Individual2), ~ gsub("05", ".7", .)))
+
 #adult_colonies1$Individual1 <- paste0("X", adult_colonies1$Individual1) # Add 'X' to Individual1
 #adult_colonies1$Individual2 <- paste0("X", adult_colonies1$Individual2) # Add 'X' to Individual2
 adult_colonies1 = adult_colonies1 %>% rename(genotype.x = Individual1, genotype.y = Individual2) %>% 
@@ -185,6 +196,7 @@ join_df2$normalised_weight <- 1 / larvae_count[join_df2$moth_id]
 
 # join fert df
 load("./Rdata/2023_palau_fert.RData") #data1
+data1 <- data1 %>% mutate(across(c(id), ~ gsub("05", ".7", .)))
 join_df2 = join_df2 %>% mutate(id = genotype.x)
 join_df2  = left_join(join_df2, data1, by = 'id')
 
@@ -374,7 +386,7 @@ anti_join(meta3, part2,  by = 'genotype' ) %>%   distinct(genotype) %>% nrow()
 (distinct_sire = join_df2 %>% distinct(genotype.y) %>% nrow())   #22 sires
 join_df2 %>% distinct(genotype.x) %>% nrow()   #18 dams
 
-join_df2 %>% distinct(genotype.x , genotype.y) #49
+join_df2 %>% distinct(genotype.x , genotype.y) %>% nrow() #49
 
 # mean dams sired per male
 join_df2 %>% group_by(genotype.y) %>%                # Group by genotype.y
@@ -742,7 +754,6 @@ abline(h = 0)
 check_zeroinflation(best_add)
 check_singularity(best_add)
 check_model(best_add)
-check_homogeneity(best_add)
 
 sim_res <- simulateResiduals(best_add)
 testOutliers(sim_res, type = "bootstrap") #double checkoutliers
@@ -840,11 +851,12 @@ pred_data_avg <- with(join_df5, {
   dist_seq <- seq(min(dist_m_c), max(dist_m_c), length.out = 100)
   ang_seq <- seq(min(cos_ang_c), max(cos_ang_c), length.out = 100)
   gen_seq <- seq(min(gen_dist), max(gen_dist), length.out = 100)
-  
-  dist_grid <- expand.grid(dist_m_c = dist_seq, cos_ang_c = mean(cos_ang_c), gen_dist = mean(gen_dist), suc = mean(suc))
-  ang_grid <- expand.grid(dist_m_c = mean(dist_m_c), cos_ang_c = ang_seq, gen_dist = mean(gen_dist), suc = mean(suc))
-  gen_grid <- expand.grid(dist_m_c = mean(dist_m_c), cos_ang_c = mean(cos_ang_c), gen_dist = gen_seq, suc = mean(suc))
-  list(dist = dist_grid, ang = ang_grid, gen = gen_grid)
+  size_seq <- seq(min(total_mean_dia.y), max(total_mean_dia.y), length.out = 100)
+  dist_grid <- expand.grid(dist_m_c = dist_seq, cos_ang_c = mean(cos_ang_c), gen_dist = mean(gen_dist), total_mean_dia.y = mean(total_mean_dia.y), suc = mean(suc))
+  ang_grid <- expand.grid(dist_m_c = mean(dist_m_c), cos_ang_c = ang_seq, gen_dist = mean(gen_dist), total_mean_dia.y = mean(total_mean_dia.y), suc = mean(suc))
+  gen_grid <- expand.grid(dist_m_c = mean(dist_m_c), cos_ang_c = mean(cos_ang_c), gen_dist = gen_seq, total_mean_dia.y = mean(total_mean_dia.y), suc = mean(suc))
+  size_grid <- expand.grid(dist_m_c = mean(dist_m_c), cos_ang_c = mean(cos_ang_c), gen_dist = mean(gen_dist), total_mean_dia.y = size_seq, suc = mean(suc))
+  list(dist = dist_grid, ang = ang_grid, gen = gen_grid, size = size_grid)
 })
 
 # Get model averaged predictions with confidence intervals
@@ -858,9 +870,11 @@ get_predictions_avg <- function(newdata, model_avg) {
 }
 
 # Get predictions for each effect using the averaged model
-dist_pred_avg <- cbind(pred_data_avg$dist, get_predictions_avg(pred_data_avg$dist, model_avg))
-ang_pred_avg <- cbind(pred_data_avg$ang, get_predictions_avg(pred_data_avg$ang, model_avg))
-gen_pred_avg <- cbind(pred_data_avg$gen, get_predictions_avg(pred_data_avg$gen, model_avg))
+dist_pred_avg <- cbind(pred_data_avg$dist, get_predictions_avg(newdata = pred_data_avg$dist, model_avg = model_avg))
+ang_pred_avg <- cbind(pred_data_avg$ang, get_predictions_avg(newdata = pred_data_avg$ang, model_avg = model_avg))
+gen_pred_avg <- cbind(pred_data_avg$gen, get_predictions_avg(newdata = pred_data_avg$gen, model_avg = model_avg))
+size_pred_avg <- cbind(pred_data_avg$size, get_predictions_avg(newdata = pred_data_avg$size, model_avg = model_avg))
+
 
 # Distance effect plot (averaged)
 p1_avg <- ggplot(dist_pred_avg, aes(x = dist_m_c)) +
@@ -895,12 +909,23 @@ p3_avg <- ggplot(gen_pred_avg, aes(x = gen_dist)) +
        title = "C") +
   theme(plot.title = element_text(face = "bold", size = 16, hjust = -0.1))
 
+# Size effect plot (averaged)
+p4_avg <- ggplot(size_pred_avg, aes(x = total_mean_dia.y)) +
+  geom_ribbon(aes(ymin = lwr, ymax = upr), alpha = 0.2) +
+  geom_line(aes(y = fit)) +
+  geom_point(data = join_df5, aes(y = final_count), alpha = 0.2) +
+  theme_sleek2() +
+  labs(x = "Mean diameter (y)",
+       y = "Predicted count",
+       title = "D") +
+  theme(plot.title = element_text(face = "bold", size = 16, hjust = -0.1))
+
 # Arrange plots with better layout
 grid.arrange(
-  p1_avg, p2_avg, p3_avg,
-  layout_matrix = rbind(c(1,2), c(3,NA)),
-  widths = c(1,1),
-  heights = c(1,1)
+  p1_avg, p2_avg,
+  layout_matrix = rbind(c(1, 2)),
+  widths = c(1, 1),
+  heights = c(1)
 )
 
 # # imputation --------------------------------------------------------------
@@ -1055,6 +1080,7 @@ points_x_jittered <- st_jitter(points_x, amount = 0.000002) # Adjust amount as n
 
 # Overlay the distance plot on the map with jittered points and adjusted alpha
 distance_map_plot <- base_map +
+  geom_point(data = meta2, aes(x = lon, y = lat), color = "white", size = 3) +
   # Red points (bottom layer)
   geom_sf(data = points_y_jittered, 
           color = 'red', 
@@ -1088,7 +1114,7 @@ distance_map_plot <- base_map +
     legend.background = element_rect(fill = "white", color = "black", linewidth = 0.5),  # Add background
     legend.margin = margin(5, 5, 5, 5)  # Add margin around legend
   )
-
+  
 distance_map_plot
 
 
@@ -1355,13 +1381,13 @@ breeding_plots <- map(sorted_mother_list, function(mother) {
   return(p)
 })
 
-breeding_plots[[16]]
+breeding_plots[[4]]
 
 # Display all plots in a grid
 # For 19 plots, we need a 4x5 layout
 total_plots <- length(breeding_plots)  # 19
-n_cols <- 4
-n_rows <- 5
+n_cols <- 3
+n_rows <- 4
 
 # Create the grid layout matrix, ensuring left-to-right row-wise order
 layout <- t(matrix(seq_len(n_rows * n_cols), nrow = n_cols, ncol = n_rows))  # Transpose the matrix
@@ -1386,7 +1412,7 @@ plot_list <- c(
 arranged_plots <- grid.arrange(
   grobs = plot_list,
   layout_matrix = layout,
-  heights = unit(rep(0.19, n_rows), "npc"),
+  heights = unit(rep(0.22, n_rows), "npc"),
   widths = unit(rep(0.22, n_cols), "npc"),
   padding = unit(5, "mm")
 )
@@ -1437,31 +1463,40 @@ links <- links %>%
   arrange(IDsource, IDtarget)  # Ensure consistent ordering
 
 # Colour by sire radial
-links$group <- substr(links$source, 1, 1)
+sire_ids <- unique(links$IDsource) # get unique sire indices
+nodes$group <- ifelse(1:nrow(nodes) %in% sire_ids, paste0("sire", match(1:nrow(nodes), sire_ids)), "other") # assign each sire a unique group
+
+links$group <- nodes$group[links$IDsource + 1] # +1 since R is 1-indexed and links use 0-indexing
 links$group <- as.factor(links$group)
 
 # Define a colour scale for the links based on the group factor
-link_colour_scale <- 'd3.scaleOrdinal()
-  .domain(["group1", "group2", "group3"])    # Replace with actual levels of links$group
-  .range(["#FF5733", "#33FF57", "#3357FF"])' # Replace with your desired colours
+node_colour_scale <- 'd3.scaleOrdinal()
+  .domain(["sire1", "sire2", "sire3", "sire4", "sire5", "sire6", "sire7", "sire8", "sire9", "sire10", "other"])
+  .range(["#e41a1c", "#377eb8", "#4daf4a", "#984ea3", "#ff7f00",
+          "#ffff33", "#a65628", "#f781bf", "#999999", "#66c2a5", "#cccccc"])' # last colour for 'other'
+
+
+
 
 # Create the Sankey network
 sankey_plot <- sankeyNetwork(
   Links = links,
   Nodes = nodes,
-  Source = "IDsource",  # Sire (source, left side)
-  Target = "IDtarget",  # Dam (target, right side)
+  Source = "IDsource",
+  Target = "IDtarget",
   Value = "n",
   NodeID = "name",
-  units = "TWh",
+  NodeGroup = "group", # <- now this works!
+  LinkGroup = "group",
   fontSize = 17,
   nodeWidth = 10,
-  LinkGroup = "group",
-  iterations = 0, # Disable dynamic node reordering to preserve manual order
-  sinksRight = T, # This ensures targets aren't forced to the right
-  nodePadding = 10, # Increase space between nodes
-  width = 800,      # Increase width to accommodate labels
-  height = 400      # Adjust height as needed
+  nodePadding = 10,
+  width = 800,
+  height = 400,
+  iterations = 0,
+  sinksRight = TRUE,
+  colourScale = node_colour_scale # <- this applies your custom scale
+  
 )
 sankey_plot
 

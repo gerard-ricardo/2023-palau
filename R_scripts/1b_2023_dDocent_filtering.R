@@ -58,12 +58,12 @@ data_gl_filtered <- data_gl
 # Initial dataset: 217 individuals, 50405 loci
 
 #replace '5 with 05 labels
-data_gl_filtered@other$ind.metrics$genotype <- gsub("(?<=_)5(?=$)", "05", data_gl_filtered@other$ind.metrics$genotype,
+data_gl_filtered@other$ind.metrics$genotype <- gsub("(?<=_)5(?=$)", "_.7", data_gl_filtered@other$ind.metrics$genotype,
                                                     perl = TRUE) # Replace '_5' with '_05'
 
-data_gl_filtered@other$ind.metrics$id <- gsub("(_5)(?![0-9])", "_05", data_gl_filtered@other$ind.metrics$id, perl = TRUE) 
+data_gl_filtered@other$ind.metrics$id <- gsub("(_5)(?![0-9])", "_.7", data_gl_filtered@other$ind.metrics$id, perl = TRUE) 
 
-data_gl_filtered@ind.names <- gsub("(_5)(?![0-9])", "_05", data_gl_filtered@ind.names, perl = TRUE) # Replace '_5' with '_05' when not followed by a digit
+data_gl_filtered@ind.names <- gsub("(_5)(?![0-9])", "_.7", data_gl_filtered@ind.names, perl = TRUE) # Replace '_5' with '_05' when not followed by a digit
 
 tail(data_gl_filtered@other$ind.metrics, 10)
 
@@ -79,10 +79,13 @@ data_gl_filtered@other$ind.metrics$genotype %>% unique()
 ##remove all larvae with c1-c4 (they were not 100% known)
 # Get IDs of individuals to keep (i.e., not larvae from c1–c4)
 data_gl_filtered  #217
-data_gl_filtered <- data_gl_filtered[na.omit(match(keep_ids, data_gl_filtered@ind.names)), ]
 keep_ids <- data_gl_filtered@other$ind.metrics %>%
   filter(!(stage == 'larvae' & genotype %in% c('x1', 'x2', 'x3', 'x4'))) %>% pull(id)
-data_gl_filtered <- data_gl_filtered[match(keep_ids, data_gl_filtered@ind.names), ]
+keep_ids <- unique(keep_ids)
+data_gl_filtered <- data_gl_filtered[data_gl_filtered@ind.names %in% keep_ids, ]
+
+# data_gl_filtered <- data_gl_filtered[match(keep_ids, data_gl_filtered@ind.names), ]
+# data_gl_filtered <- data_gl_filtered[na.omit(match(keep_ids, data_gl_filtered@ind.names)), ]
 
 data_gl_filtered
 #200  individuals, 50405  loci
