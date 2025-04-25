@@ -296,7 +296,7 @@ quan_95 <- wtd.quantile(join_df2$dist_m, probs = c(0.025, 0.975))
 lower_66 <- quan_66[1]; upper_66 <- quan_66[2]
 lower_95 <- quan_95[1]; upper_95 <- quan_95[2]
 unweight_dist = join_df2$dist_m
-#save(unweight_dist, file = file.path("C:/Users/gerar/OneDrive/1_Work/4_Writing/1_Allee_effects_project/2 Allee model and overview/Rdata", "palau_unweight_dist.RData"))
+#save(unweight_dist, file = file.path("C:/Users/gerar/OneDrive/1_Work/4_Writing/1 Allee model and overview/Rdata", "palau_unweight_dist.RData"))
 
 #weighted
 (quan_w <- wtd.quantile(join_df2$dist_m, weights = join_df2$normalised_weight, probs=c(0, .25, .5, .83, 1)))
@@ -696,7 +696,7 @@ AIC(global_mod_nb_zsuc, global_mod_nb_z1, global_mod_nb_nozi, global_mod_poi_zsu
 
 #Given Martin 2006 incates theoretical inclusion of zi based on false zero, looks like global_mod_nb_z1 is best.
 #Howver, no idfference compared to no zi model in dredge so may have to go this one.
-summary(global_mod_nb_z1)
+summary(global_mod_nb_nozi)
 
 performance::check_collinearity(global_mod_nb_nozi)  #high correlation caused by interaction
 sum(resid(global_mod_nb_nozi, type = "pearson")^2) / (nrow(join_df5) - length(coef(global_mod_nb_nozi))) # (overdispsrion glm Zuur)
@@ -764,7 +764,8 @@ check_model(best_add)
 
 #model averaging
 extract_models <- get.models(dredged_models, subset = delta < 2)
-best = extract_models[1:3] #manually extract best 4
+len1 = length(extract_models)
+best = extract_models[1:len1] #manually extract best 4
 model_avg <- model.avg(best, revised.var = TRUE)  # Model averaging across them
 summary(model_avg)
 #use full average

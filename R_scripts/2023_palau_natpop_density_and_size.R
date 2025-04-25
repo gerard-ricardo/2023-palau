@@ -80,16 +80,18 @@ median(dist)
 n_n.med <- lapply(dist, median) # 0.71m apart
 n_n.mean_all <- mean(unlist(n_n.med))
 n_n.sd_all <- sd(unlist(n_n.med))
-print(paste0('distance: ', median(dist) ))
+print(paste0('spacing slope: ', round(median(dist),2), '+/-', round(n_n.sd_all,2) ))
 sd(dist)
 
 # density of colonies
+str(data1)
 transect_width = 5
 transect_length = 50
 den1 = nrow(data1) / (transect_width * transect_length) # 0.304 col/m^2
-print(paste0('density: ',den1))
-
-
+print(paste0('density slope: ',den1))
+sd_count = sd(data1$y)  # Standard deviation of the counts (y-values)
+sd_density = sd_count / (transect_width * transect_length)  # SD of density
+print(paste0('SD of density slope: ', sd_density))
 
 
 # density of neigherest neighbout
