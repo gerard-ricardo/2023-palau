@@ -218,8 +218,10 @@ join_df2$minutes <- sub(".*:(\\d+)", "\\1", join_df2$time)  %>% as.numeric()# Ex
 #join_df2$time <- strptime(join_df2$time, format = "%H:%M") # Convert to time format
 mean(join_df2$minutes, na.rm = T)
 sd(join_df2$minutes, na.rm = T)
+min(join_df2$minutes, na.rm = T)
+max(join_df2$minutes, na.rm = T)
 hist(join_df2$minutes)  #weird distribution. Ineresting double peak. 
-which(join_df2$minutes < 44)
+range(join_df2$minutes[which(join_df2$minutes > 44)])
 join_df2$syncr <- ifelse(join_df2$minutes < 44, "async", "sync") # Assign labels based on condition
 
 

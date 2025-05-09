@@ -31,7 +31,7 @@ set.seed(123)
 kmeans_result <- kmeans(pca_data, centers = 2, nstart = 25) # Change centers if needed
 metadata <- data.frame(sample_id = rownames(pca_data), group = as.factor(kmeans_result$cluster))
 genetic_dist_matrix1 <- vegdist(pca_data, method = "euclidean")  # Common for PCA-based distances
-permanova_result <- adonis2(genetic_dist_matrix1 ~ group, data = metadata, permutations = 999)
+permanova_result <- adonis2(genetic_dist_matrix1 ~ group, data = metadata, permutations = 9999)
 print(permanova_result)
 #signifcant but only 6% explained indicating weak structue
 

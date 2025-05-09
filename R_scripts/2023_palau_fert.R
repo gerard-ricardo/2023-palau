@@ -6,8 +6,6 @@
 # outlier at distnace = 30, deg = 25 is likely from two spokes crossing, check genetics
 
 
-
-
 # 1. Load Libraries ------------------------------------------------------
 library(tidyverse)
 library(ggplot2)
@@ -84,7 +82,7 @@ with(data1, mean(prop, na.rm = T))  #unweighted
 (wei_mean_prop_cent <- sum(data1$prop * data1$tot, na.rm = TRUE) / sum(data1$tot, na.rm = TRUE))
 (wei_mean_prop_cent <- sum(centre_indiv$prop * centre_indiv$tot, na.rm = TRUE) / sum(centre_indiv$tot, na.rm = TRUE))  #centre
 #I dont think weighting approporate here, as the low one is over weighted
-mean(centre_indiv$prop)
+print(paste0('unweighted centre fert: ' ,mean(centre_indiv$prop)))
 
 #try downsampling
 #central
@@ -94,6 +92,9 @@ resampled_data <- centre_indiv %>% group_by(id) %>% mutate(prob_suc = suc / tot)
   mutate(suc1 = rbinom(1, target_n, prob_suc), fail1 = target_n - suc1, tot1 = target_n, prop1 = suc1 / tot1) %>%
   ungroup()%>% data.frame()
 mean(resampled_data$prop1)
+print(paste0('unweighted downsampled centre fert: ' , 100*round(mean(resampled_data$prop1),4)))
+
+
 #all
 set.seed(123) # Ensure reproducibility
 target_n_a <- 50# Desired sample size per id
@@ -101,6 +102,12 @@ resampled_data_all <- data1 %>% group_by(id) %>% mutate(prob_suc = suc / tot) %>
   mutate(suc1 = rbinom(1, target_n, prob_suc), fail1 = target_n - suc1, tot1 = target_n, prop1 = suc1 / tot1) %>%
   ungroup() %>% data.frame()
 mean(resampled_data_all$prop1)
+print(paste0('unweighted downsampled centre fert: ' , 100*round(mean(resampled_data_all$prop1), 4)))
+median_prop <- median(resampled_data_all$prop1)
+iqr_prop <- IQR(resampled_data_all$prop1)
+print(paste0('Median fertilisation: ', 100*round(median_prop, 4), '%, IQR: ', 100*round(iqr_prop, 4), '%'))
+
+
 #radial
 set.seed(124) # Ensure reproducibility
 target_n_a <- 50 # Desired sample size per id
@@ -108,6 +115,7 @@ resampled_data_rad <- radial_indiv %>% group_by(id) %>% mutate(prob_suc = suc / 
   mutate(suc1 = rbinom(1, target_n, prob_suc), fail1 = target_n - suc1, tot1 = target_n, prop1 = suc1 / tot1) %>%
   ungroup() %>% data.frame()
 mean(resampled_data_rad$prop1)
+print(paste0('unweighted downsampled centre fert: ' , 100*round(mean(resampled_data_rad$prop1), 4))  )
 
 
 
@@ -201,6 +209,16 @@ md1$gam
 coef(md1)
 summary(md1)
 summary(md1$gam)
+
+# Extract coefficient for distance
+coef_dist <- summary(md1$gam)$p.table["dist", "Estimate"] # -0.1168
+pval_dist <- summary(md1$gam)$p.table["dist", "Pr(>|t|)"] # 0.00182
+# Convert to odds ratio
+odds_ratio <- exp(coef_dist) # ≈ 0.89
+print(paste0("For each 1 m increase in distance, the odds of fertilisation decrease by ", 
+             round((1 - odds_ratio) * 100, 1), "% (p = ", signif(pval_dist, 3), ")"))
+                   
+
 
 ################
 #k-fold CV
