@@ -3,7 +3,9 @@
 
 # Notes for standard filtering --------------------------------------------
 # use batch to workout clones/fragments
-# COLONY output (palau 2) for clones aswell to confirm (did all ther filtering remove indiv?)
+# COLONY output (palau 15) for clones aswell to confirm (did all ther filtering remove indiv?)
+
+
 #    - c11_1, c11_2 mismatch  (fine to join group 11, COLONY false negative). C11 may be somewhat continatmed (lots of hetero)
 #    -5_10_2, 5_10_1 mismatch   - likely mislabelled 3_5_1 with 5_10_1
 #    - 3_5_2 (no rep)

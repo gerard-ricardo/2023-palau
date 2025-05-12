@@ -78,6 +78,7 @@ rad_lines = unique(radial_indiv$deg)
 (with(data1, sum(suc, na.rm = T) / sum(tot, na.rm = T)))  #0.235
 #mean of all samples
 with(data1, mean(prop, na.rm = T))  #unweighted
+with(data1, sd(prop, na.rm = T))  #unweighted
 #weighted mean
 (wei_mean_prop_cent <- sum(data1$prop * data1$tot, na.rm = TRUE) / sum(data1$tot, na.rm = TRUE))
 (wei_mean_prop_cent <- sum(centre_indiv$prop * centre_indiv$tot, na.rm = TRUE) / sum(centre_indiv$tot, na.rm = TRUE))  #centre
@@ -92,6 +93,7 @@ resampled_data <- centre_indiv %>% group_by(id) %>% mutate(prob_suc = suc / tot)
   mutate(suc1 = rbinom(1, target_n, prob_suc), fail1 = target_n - suc1, tot1 = target_n, prop1 = suc1 / tot1) %>%
   ungroup()%>% data.frame()
 mean(resampled_data$prop1)
+sd(resampled_data$prop1)
 print(paste0('unweighted downsampled centre fert: ' , 100*round(mean(resampled_data$prop1),4)))
 
 
@@ -102,20 +104,22 @@ resampled_data_all <- data1 %>% group_by(id) %>% mutate(prob_suc = suc / tot) %>
   mutate(suc1 = rbinom(1, target_n, prob_suc), fail1 = target_n - suc1, tot1 = target_n, prop1 = suc1 / tot1) %>%
   ungroup() %>% data.frame()
 mean(resampled_data_all$prop1)
-print(paste0('unweighted downsampled centre fert: ' , 100*round(mean(resampled_data_all$prop1), 4)))
+print(paste0('unweighted downsampled centre fert: ' , 100 * round(mean(resampled_data_all$prop1), 4)))
 median_prop <- median(resampled_data_all$prop1)
 iqr_prop <- IQR(resampled_data_all$prop1)
 print(paste0('Median fertilisation: ', 100*round(median_prop, 4), '%, IQR: ', 100*round(iqr_prop, 4), '%'))
+range(resampled_data_all$prop1)
 
 
 #radial
-set.seed(124) # Ensure reproducibility
+set.seed(123) # Ensure reproducibility
 target_n_a <- 50 # Desired sample size per id
 resampled_data_rad <- radial_indiv %>% group_by(id) %>% mutate(prob_suc = suc / tot) %>%  filter(tot >= target_n_a) %>%  # Only resample when tot is large
   mutate(suc1 = rbinom(1, target_n, prob_suc), fail1 = target_n - suc1, tot1 = target_n, prop1 = suc1 / tot1) %>%
   ungroup() %>% data.frame()
 mean(resampled_data_rad$prop1)
-print(paste0('unweighted downsampled centre fert: ' , 100*round(mean(resampled_data_rad$prop1), 4))  )
+range(resampled_data_rad$prop1)
+print(paste0('unweighted downsampled centre fert: ' , 100 * round(mean(resampled_data_rad$prop1), 4))  )
 
 
 
@@ -209,6 +213,7 @@ md1$gam
 coef(md1)
 summary(md1)
 summary(md1$gam)
+AIC(md1)
 
 # Extract coefficient for distance
 coef_dist <- summary(md1$gam)$p.table["dist", "Estimate"] # -0.1168
@@ -218,6 +223,15 @@ odds_ratio <- exp(coef_dist) # ≈ 0.89
 print(paste0("For each 1 m increase in distance, the odds of fertilisation decrease by ", 
              round((1 - odds_ratio) * 100, 1), "% (p = ", signif(pval_dist, 3), ")"))
                    
+
+############################
+#test  slightly lower sperm conc for some samples (5_30, 3_30, 4_30 from mlg filter)
+radial_indiv$clonemate_in_sperm <- ifelse(radial_indiv$egg_clone_in_sperm, 1, 0) # 1 if egg clone found among sperm donors
+radial_indiv$effective_sperm_sources <- ifelse(radial_indiv$id %in% c("5_30", "3_30", "4_30"), 14, 15) # Decrease by 1 if clone in sperm
+md2 <- gamm(cbind(suc, tot - suc) ~ s(deg, k = 3) + dist + effective_sperm_sources, 
+              random = list(obs = ~1), family = binomial, method = "REML", data = radial_indiv)
+summary(md2$gam)
+AIC(md2) #didn't improve fit and impact negigable.
 
 
 ################

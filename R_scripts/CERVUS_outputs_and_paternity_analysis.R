@@ -25,6 +25,10 @@
 # where is c2 and c4?
 # fro the network analysis, maybe try keeping all possible pairwise combination to provide structure, but colour the observ
 
+#selfing.
+#  - cervus ins't showing selfing but these are positions not genotypes. Using 200 threshold there is 4.6%. 200 threshold seems to match COLONY
+
+
 ##THOUGHT ON ASYNCRONY
 # - very unequal sample size using only mum approach
 #async  sync 
@@ -71,9 +75,9 @@ source("https://raw.githubusercontent.com/gerard-ricardo/data/master/theme_sleek
 #dDocent (make sure '.' between split words
 (data1 <- read.csv(file = file.path("C:/Users/gerar/OneDrive/1_Work/4_Writing/1_Palau genetics mixing/Cervus", 
                                     "summary_out_docent1.csv"), check.names = T))
-nrow(data1)
+print(paste0('sequenced larvae: ', nrow(data1)))
 
-data1 <- data1 %>% mutate(across(c(Mother.ID , Candidate.father.ID), ~ gsub("05", ".7", .)))
+data1 <- data1 %>% mutate(across(c(Mother.ID , Candidate.father.ID), ~ gsub("05", "0.7", .)))
 #data1$Mother.ID <- sub("_05", "_.7", data1$Mother.ID)
 #data1$Candidate.father.ID <- sub("_05", "_.7", data1$Candidate.father.ID)
 str(data1) # check data type is correc
@@ -83,19 +87,18 @@ data1$moth_id <- as.factor(as.character(data1$Mother.ID))
 data1$fath_id <- as.factor(as.character(data1$Candidate.father.ID))
 nrow(data1)
 (data1 <- data1[grep("\\*", data1$Trio.confidence), ]) # Filter rows where 'Trio.confidence' contains '*'
-grepl('05', data1$id)
+print(paste0('sequenced confidence larvae: ', nrow(data1)))
 
 
 data2 = data1 %>% dplyr::select(., c(offsp_id, moth_id, fath_id))
 data2 = data2 %>% mutate(id = moth_id)  #mother
 data2 %>% group_by(id) %>% summarise(count = n()) #check number of offspring per mother
-nrow(data2)  #108 larvae
 
 # Import meta data -----------------------------------------------------------
 #load("./data/2023_palau_meta_2.csv")  #originally found in data_gl.RData
 meta <- read.csv(file = file.path("./data", "2023_palau_meta_2.csv"))
 #write.csv(data_gl@other$ind.metrics, "./data/2023_palau_meta_2.csv", row.names = FALSE) # export metadata to CSV
-meta <- meta %>% mutate(across(c(genotype, id), ~ gsub("05", ".7", .)))
+meta <- meta %>% mutate(across(c(genotype, id), ~ gsub("05", "0.7", .)))
 
 
 #meta = data_gl@other$ind.metrics
@@ -142,12 +145,19 @@ join_df2 <- left_join(join_df1, meta2, by = 'id')  #add father lat lon
 nrow(join_df2)
 
 #replace 05 with .7
-join_df2 <- join_df2 %>% mutate(across(c(moth_id, fath_id, id), ~ gsub("05", ".7", .)))
+join_df2 <- join_df2 %>% mutate(across(c(moth_id, fath_id, id), ~ gsub("05", "0.7", .)))
 
+#selfing (0.02 mlg.filter thresold)
+nrow(join_df2)
+join_df2 <- left_join(join_df2, real_geno_df.x, by = "moth_id") # add real_geno column to join_df2
+join_df2 <- left_join(join_df2, real_geno_df.y, by = "fath_id") # add real_geno column to join_df2
+selfs1 = join_df2[which(join_df2$real_geno.x == join_df2$real_geno.y),]
+nrow(selfs1)
+#8
 
 #add genetic relatedness (run 2a first)
 adult_colonies1 = adult_colonies_sort
-adult_colonies1 <- adult_colonies1 %>% mutate(across(c(Individual1, Individual2), ~ gsub("05", ".7", .)))
+adult_colonies1 <- adult_colonies1 %>% mutate(across(c(Individual1, Individual2), ~ gsub("05", "0.7", .)))
 
 #adult_colonies1$Individual1 <- paste0("X", adult_colonies1$Individual1) # Add 'X' to Individual1
 #adult_colonies1$Individual2 <- paste0("X", adult_colonies1$Individual2) # Add 'X' to Individual2
@@ -164,6 +174,13 @@ genetic_dist_ave <- adult_colonies1 %>%
   ungroup() %>% rename(genotype.x = genotype_x_trimmed , genotype.y = genotype_y_trimmed, gen_dist = mean_Distance ) %>% 
   data.frame()# Remove grouping
 #add onto join_df3
+
+## selfing (no selfing from cervus )
+# selfing_id = join_df2[which(join_df2$genotype.x == join_df2$genotype.y),]  #self fertilisation
+# selfing_no = nrow(selfing_id)
+# (selfing_prop = sum(selfing_id$normalised_weight) / sum(join_df2$normalised_weight))  #normalised selfing
+# #
+# sum(selfing_id$normalised_weight[c(1,3)]) /sum(join_df2$normalised_weight)  #
 
 ## add father genotype and remove multiple options (need group_list2 in 2a) to run
 # tt1 = tt %>% dplyr::select(genotype, genotype2) %>% rename(genotype.y = genotype)
@@ -187,6 +204,8 @@ join_df2$cert_status <- mapply(check_cert, join_df2$genotype.y, MoreArgs = list(
 head(join_df2)
 join_df2 <- join_df2 %>% dplyr::filter(cert_status == "cert")
 nrow(join_df2)
+print(paste0('non-ambiguos larvae: ', nrow(join_df2)))
+
 
 
 #try normalizing to weight larvae. This means that multiple larvae from the same mother are given less weight.
@@ -196,7 +215,7 @@ join_df2$normalised_weight <- 1 / larvae_count[join_df2$moth_id]
 
 # join fert df
 load("./Rdata/2023_palau_fert.RData") #data1
-data1 <- data1 %>% mutate(across(c(id), ~ gsub("05", ".7", .)))
+data1 <- data1 %>% mutate(across(c(id), ~ gsub("05", "0.7", .)))
 join_df2 = join_df2 %>% mutate(id = genotype.x)
 join_df2  = left_join(join_df2, data1, by = 'id')
 
@@ -213,7 +232,7 @@ join_df2$dist <- st_distance(points_x_proj, points_y_proj, by_element = TRUE)
 join_df2$dist_m = as.numeric(join_df2$dist )
 
 ##add asycnrony (mum only)
-str(join_df2$time)
+#str(join_df2$time)
 join_df2$minutes <- sub(".*:(\\d+)", "\\1", join_df2$time)  %>% as.numeric()# Extract minutes
 #join_df2$time <- strptime(join_df2$time, format = "%H:%M") # Convert to time format
 mean(join_df2$minutes, na.rm = T)
@@ -282,6 +301,7 @@ join_df2$angle_rad <- join_df2$angle * pi / 180
 angles_circular <- circular(join_df2$angle_rad, units = "radians")
 rayleigh.test(angles_circular)  #strong sig eefect
 
+print(paste0('After angle and sync calculations: ', nrow(join_df2)))
 
 
 # Analyses ----------------------------------------------------------------
@@ -290,6 +310,7 @@ rayleigh.test(angles_circular)  #strong sig eefect
 #unweighted
 (quan <- quantile(join_df2$dist_m, probs=c(0, .25, .5, .83, 1)))
 unname(quan[3])
+print(paste0('unweighted medium: ', unname(quan[3])))
 hist(join_df2$dist_m)  #unweighted
 table(join_df2$dist_m)
 #plot(density(join_df2$dist_m))  #unweighted
@@ -302,7 +323,8 @@ unweight_dist = join_df2$dist_m
 
 #weighted
 (quan_w <- wtd.quantile(join_df2$dist_m, weights = join_df2$normalised_weight, probs=c(0, .25, .5, .83, 1)))
-unname(quan[3])
+
+print(paste0('weighted medium: ', unname(quan_w[3])))
 # Units: [m]
 # 0%       25%       50%       75%      100% 
 # 0.000000  1.621345  3.124454 10.830502 30.690024 
@@ -367,38 +389,38 @@ ks.test(join_df2$normalised_weight , pairs_df$dist_m)
 
 
 
-## selfing (see below)
-selfing_id = join_df2[which(join_df2$dist_m == 0),]  #self fertilisation
-selfing_no = nrow(selfing_id)
-(selfing_prop = sum(selfing_id$normalised_weight) / sum(join_df2$normalised_weight))  #normalised selfing
-#most of these from individual (5/7) from 7_10. Interesting other fragments didnt have this though. 
-sum(selfing_id$normalised_weight[c(1,3)]) /sum(join_df2$normalised_weight)  #normalised with Adult 7 removed
+
 
 ## participants
 meta3 <- meta2[complete.cases(meta2), ] # make sure import matches NA type
 part1 = data.frame(id = c(join_df2$moth_id , join_df2$fath_id))  #find parental reps participating
 part2 = left_join(part1, meta, by  = 'id') %>% dplyr::select(genotype ) %>%   distinct(genotype)
-(nrow(part2))  #31 participants
+(nrow(part2))  #21 participants
+print(paste0('total positions participants: ', nrow(part2)))
 
-#participants = data.frame(id = c(unique(join_df2$moth_id), unique(join_df2$fath_id)))
+#non partic
 anti_join(meta3, part2,  by = 'genotype' ) %>%   distinct(genotype) %>% nrow()
-#13 individuals not participating - but this needs to cross check against fert data which may show additional participating mothers (not sequenced)
+print(paste0('total non -participants: ', nrow(part2)))
+#23 individuals not participating - but this needs to cross check against fert data which may show additional participating mothers (not sequenced)
+
 
 # no. sires and dams
-(distinct_sire = join_df2 %>% distinct(genotype.y) %>% nrow())   #22 sires
-join_df2 %>% distinct(genotype.x) %>% nrow()   #18 dams
-
-join_df2 %>% distinct(genotype.x , genotype.y) %>% nrow() #49
+(distinct_sire = join_df2 %>% distinct(genotype.y) %>% nrow())   #10 sires
+print(paste0('no sires: ', distinct_sire))
+no_dams = join_df2 %>% distinct(genotype.x) %>% nrow()   #18 dams
+print(paste0('no dams: ', no_dams))
+no_both = join_df2 %>% distinct(genotype.x , genotype.y) %>% nrow() 
+print(paste0('no all: ', no_both))
 
 # mean dams sired per male
-join_df2 %>% group_by(genotype.y) %>%                # Group by genotype.y
-  summarise(count = n_distinct(genotype.x)) %>% summarise(mean_count = mean(count))  
-#mean dams fert per sire was 2.23
+md_sire =join_df2 %>% group_by(genotype.y) %>%                # Group by genotype.y
+  summarise(count = n_distinct(genotype.x)) %>% summarise(mean_count = mean(count))  %>% round(., 2)
+print(paste0('mean dams sired per male: ', md_sire))
 
 # mean males per dam (small breeding units)
-join_df2 %>% group_by(genotype.x) %>%                # Group by genotype.y
-  summarise(count = n_distinct(genotype.y)) %>% summarise(mean_count = mean(count))  
-#mean dams fert per sire was 2.72
+mm_d = join_df2 %>% group_by(genotype.x) %>%                # Group by genotype.y
+  summarise(count = n_distinct(genotype.y)) %>% summarise(mean_count = mean(count))  %>% round(., 2)
+print(paste0('mean males per dam: ', mm_d))
 
 # how many distinct dams did top 10% sire
 data3 = join_df2 %>% dplyr::select(genotype.y, genotype.x) %>% distinct() 
@@ -409,34 +431,19 @@ distinct_x_sired_by_top <- df11 %>% filter(genotype.y %in% top_sires) %>% distin
 total_distinct_x <- df11 %>% distinct(genotype.x) %>% nrow()
 percentage_sired_by_top <- (distinct_x_sired_by_top / total_distinct_x) * 100
 percentage_sired_by_top
+nrow(data3)
 
-str(join_df2)
 
 # stats -------------------------------------------------------------------
 
 ## 3 types of zero. 1) structural (impossible), 2) missing data (only subsampled), 3) true zeros if sampled whole container
 # model successful pos cross vs all unsuccessful crosses
 
-## prepare data fro analysis of every pairwise combination as counts. 
+## prepare data for analysis of every pairwise combination as counts. 
 unique_dams <- unique(data1$id, na.rm = T)   #all dams sampled for fert
 unique_sires <- unique(na.omit(meta2$genotype))
 #create all pairwise combinations. Only sample mums 
 all_pairs <- expand.grid(genotype.x = unique_dams, genotype.y = unique_sires)
-#remove uncertain combinations
-# check_cert <- function(position, group_list2) {
-#   matched_group <- sapply(group_list2, function(x) position %in% x) # Check which group contains the position
-#   if (any(matched_group)) {
-#     group_index <- which(matched_group)[1] # Get the first matching group
-#     if (length(group_list2[[group_index]]) == 1) {
-#       return("cert")  # If only one option, it is certain
-#     } else {
-#       return("uncert")  # If multiple options exist, it is uncertain
-#     }
-#   } else {
-#     return("uncert")  # If no match found, assume uncertainty
-#   }
-# }
-# Apply the function to each row in join_df2
 all_pairs$cert_status <- mapply(check_cert, all_pairs$genotype.y, MoreArgs = list(group_list2 = group_list2))
 head(all_pairs)
 all_pairs <- all_pairs %>% dplyr::filter(cert_status == "cert")
@@ -444,6 +451,7 @@ nrow(all_pairs)  #270 possible combination
 #observed_crosses <- join_df2 %>% dplyr::select(genotype.x, genotype.y) %>% mutate(count = 1)
 #observed_crosses_aggregated <- join_df2 %>% group_by(genotype.x, genotype.y) %>% summarise(count = n(), .groups = 'drop') #agreegate multiple pairwise crosses
 observed_crosses_aggregated <- join_df2 %>% group_by(genotype.x, genotype.y, syncr) %>% summarise(count = n(), .groups = 'drop')
+print(paste0('After observed_crosses_aggregated: ', nrow(observed_crosses_aggregated))) # check rows
 
 #complete_data <-left_join(all_pairs, observed_crosses_aggregated, by = c("genotype.x", "genotype.y")) %>% mutate(count = replace_na(count, 0))
 complete_data <- left_join(all_pairs, observed_crosses_aggregated, by = c("genotype.x", "genotype.y")) %>% mutate(count = replace_na(count, 0), syncr = replace_na(syncr, "sync"))
@@ -472,7 +480,7 @@ join_df3 <- join_df3 %>% mutate(ang_rel_ds = (bearing(cbind(lon.x, lat.x), cbind
                                 ang_rel_ds = ifelse(ang_rel_ds > 180, 360 - ang_rel_ds, ang_rel_ds),
                                 angle = (bearing(cbind(lon.x, lat.x), cbind(lon.y, lat.y)) + 360) %% 360)  # Convert to range (-180, 180), linear scale with 
 join_df3 <- join_df3 %>% mutate(cos_ang = abs(cos(ang_rel_ds * pi / 180)))  # Converts angles into a continuous variable, 0 = perp, 1 = upstream/downstream
-
+nrow(join_df3)
 data4 = data1 %>% dplyr::select(id, suc, prop) %>% na.omit() %>% rename(genotype.x = id)
 #join_df4 = left_join(join_df3, data4, by = 'genotype.x') %>% mutate(p_s  = count/suc) %>% na.omit() 
 #remove females with no fert
@@ -498,6 +506,7 @@ str(join_df4)
 # summary(poisson_model_offset)
 
 ## truncated count (modelling only the magnitude of success once success is possible/observed)
+nrow(join_df4)
 df_pos_only <- subset(join_df4, count > 0)
 # try binning to flow
 df_pos_only <- df_pos_only %>% mutate(align_cat = case_when(
@@ -1423,6 +1432,9 @@ arranged_plots <- grid.arrange(
  
 # network sankey ----------------------------------------------------------
 # Calculate counts of distinct crosses for each genotype.y
+nrow(df_pos_only)
+length(unique(c(df_pos_only$genotype.x, df_pos_only$genotype.y)))
+
 cross_counts1 <- df_pos_only %>%
   group_by(genotype.y) %>%
   summarise(distinct_crosses = n_distinct(genotype.x)) %>%

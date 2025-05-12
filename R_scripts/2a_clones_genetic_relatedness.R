@@ -1,6 +1,6 @@
 # clones and genetic relatedness------------------------------------------------------------------
 
-#SEE COLONY BESTCLONE FOR CLONE ANALYSIS (Palau2).  SAME AS SMOUSE BUT MORE DEFENSIABLE (EXCEPT C5_2)
+#SEE COLONY BESTCLONE FOR CLONE ANALYSIS (Palau 15fullrun clones).  SAME AS SMOUSE BUT MORE DEFENSIABLE (EXCEPT C5_2)
 #note: further runs in COLONy hasn't reproduce palau2, which  might be because of increased filtering
 
 
@@ -11,6 +11,24 @@ library(ggraph)
 # Perform MLG analysis
 mlg_analysis <- mlg(data_genind_adult)
 print(paste("MLG Analysis:", mlg_analysis, "- clearly incorrect since there are def reps"))
+# Convert genind to genclone to use @mlg slot
+data_genclone_adult <- as.genclone(data_genind_adult) # convert to genclone
+data_genclone_adult@mlg <- mlg.filter(data_genclone_adult, dist=bitwise.dist, threshold=0.2) # assign clone groups
+mlg(data_genclone_adult) # now returns clone clusters
+mlg_vec <- data_genclone_adult@mlg
+mlg_table <- data.frame(Individual=indNames(data_genclone_adult),MLG=mlg_vec)
+clone_groups <- split(mlg_table$Individual,mlg_table$MLG)
+clone_groups[sapply(clone_groups,length)>0]
+#this works much better
+#pssible mismatches C11_2; c3_2, 
+#possible clones: c11 & c17 & 5_30; c14 and 1_05/1_30; 3_30, 4_30, c10; c3 & c13
+#
+real_geno_df <- stack(clone_groups) # collapse list into data.frame with values and group names
+real_geno_df <- real_geno_df %>% mutate(across(c(values ), ~ gsub("05", "0.7", .)))
+real_geno_df <- real_geno_df %>% mutate(values = paste0("X", values))
+real_geno_df.x <- real_geno_df %>% rename(moth_id = values, real_geno.x = ind)
+real_geno_df.y = real_geno_df %>% rename(fath_id = values, real_geno.y = ind)
+
 
 
 # Compare relatedness on single individual vs all
@@ -24,9 +42,19 @@ str(adult_colonies_sort)
 plot(density(adult_colonies_sort$Distance, main = "Genetic Distance Distribution", xlab = "Genetic Distance",
              ylab = "Frequency"))
 # heatmap
+# Temporary fix by adding leading zeroes
 heatmap_data <- adult_colonies_sort %>%
+  # mutate(Individual1 = gsub("_05_", "_0.5_", Individual1), # Replace '05' with '0.5'
+  #        Individual1 = gsub("_3_", "_03_", Individual1), # Replace '3' with '03'
+  #        Individual2 = gsub("_05_", "_0.5_", Individual2), # Same for Individual2
+  #        Individual2 = gsub("_3_", "_03_", Individual2)) %>%
   mutate(Individual1 = factor(Individual1, levels = unique(Individual1)),
-         Individual2 = factor(Individual2, levels = unique(Individual2)))
+         Individual2 = factor(Individual2, levels = unique(Individual2)))# %>%
+  # After sorting, revert the temporary labels back to original format
+  # mutate(Individual1 = gsub("_0.5_", "_05_", Individual1), # Revert '0.5' back to '05'
+  #        Individual1 = gsub("_03_", "_3_", Individual1), # Revert '03' back to '3'
+  #        Individual2 = gsub("_0.5_", "_05_", Individual2), # Same for Individual2
+  #        Individual2 = gsub("_03_", "_3_", Individual2)) # Same for Individual2
 ggplot(heatmap_data, aes(x = Individual1, y = Individual2, fill = Distance)) +
   geom_tile() + scale_fill_gradient(low = "blue", high = "red") + # Blue = close relatives, Red = distant
   theme_minimal() +
