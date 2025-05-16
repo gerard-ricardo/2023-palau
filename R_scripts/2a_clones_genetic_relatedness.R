@@ -13,7 +13,7 @@ mlg_analysis <- mlg(data_genind_adult)
 print(paste("MLG Analysis:", mlg_analysis, "- clearly incorrect since there are def reps"))
 # Convert genind to genclone to use @mlg slot
 data_genclone_adult <- as.genclone(data_genind_adult) # convert to genclone
-data_genclone_adult@mlg <- mlg.filter(data_genclone_adult, dist=bitwise.dist, threshold=0.2) # assign clone groups
+data_genclone_adult@mlg <- mlg.filter(data_genclone_adult, dist=bitwise.dist, threshold=0.01) # assign clone groups
 mlg(data_genclone_adult) # now returns clone clusters
 mlg_vec <- data_genclone_adult@mlg
 mlg_table <- data.frame(Individual=indNames(data_genclone_adult),MLG=mlg_vec)
@@ -22,6 +22,12 @@ clone_groups[sapply(clone_groups,length)>0]
 #this works much better
 #pssible mismatches C11_2; c3_2, 
 #possible clones: c11 & c17 & 5_30; c14 and 1_05/1_30; 3_30, 4_30, c10; c3 & c13
+genotype_data_long <- stack(clone_groups[sapply(clone_groups, length) > 0])
+colnames(genotype_data_long) <- c("id", "group")
+group_labels <- setNames(paste0("X", seq_along(unique(genotype_data_long$group))), unique(genotype_data_long$group))
+genotype_data_long$genotype2 <- group_labels[as.character(genotype_data_long$group)]
+
+
 #
 real_geno_df <- stack(clone_groups) # collapse list into data.frame with values and group names
 real_geno_df <- real_geno_df %>% mutate(across(c(values ), ~ gsub("05", "0.7", .)))
@@ -101,16 +107,20 @@ result$close_rel[result$Individual1 == first_group]
 result$close_rel
 
 
-# Convert list into a dataframe where each row represents a group
-group_list <- lapply(result$close_rel, as.character) # Convert factors to characters
-edges <- do.call(rbind, lapply(group_list, function(g) if (length(g) > 1) combn(g, 2, simplify = FALSE))) %>%
-  do.call(rbind, .) %>% as.data.frame(stringsAsFactors = FALSE) %>% setNames(c("Individual1", "Individual2"))
-graph <- graph_from_data_frame(edges, directed = FALSE)
-clusters <- components(graph)
-grouped_individuals <- data.frame(id = names(clusters$membership), Cluster = clusters$membership)
-genotype_data <- grouped_individuals %>% group_by(Cluster) %>% summarise(id = paste(unique(id), collapse = ", ")) %>%
-  data.frame() %>% mutate(genotype2 = paste0('x', Cluster)) %>% dplyr::select(-Cluster)
-nrow(genotype_data)
+##old grouping useing 200 threshold
+# # Convert list into a dataframe where each row represents a group  (
+# group_list <- lapply(result$close_rel, as.character) # Convert factors to characters
+# edges <- do.call(rbind, lapply(group_list, function(g) if (length(g) > 1) combn(g, 2, simplify = FALSE))) %>%
+#   do.call(rbind, .) %>% as.data.frame(stringsAsFactors = FALSE) %>% setNames(c("Individual1", "Individual2"))
+# graph <- graph_from_data_frame(edges, directed = FALSE)
+# clusters <- components(graph)
+# grouped_individuals <- data.frame(id = names(clusters$membership), Cluster = clusters$membership)
+# genotype_data <- grouped_individuals %>% group_by(Cluster) %>% summarise(id = paste(unique(id), collapse = ", ")) %>%
+#   data.frame() %>% mutate(genotype2 = paste0('x', Cluster)) %>% dplyr::select(-Cluster)
+# nrow(genotype_data)
+# genotype_data_long <- genotype_data %>%
+#   separate_rows(id, sep = ",")  %>% data.frame()
+# genotype_data_long$id <- trimws(genotype_data_long$id)  #trims leading white space from labels
 
 # visualise groups 
 # Expand the list column into individual rows

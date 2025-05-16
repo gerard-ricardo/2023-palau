@@ -93,9 +93,7 @@ library(ggraph)
 # )
 
 # Step 2: Convert to long format, splitting each 'id' entry by commas (from 2a script)
-genotype_data_long <- genotype_data %>%
-  separate_rows(id, sep = ",")  %>% data.frame()
-genotype_data_long$id <- trimws(genotype_data_long$id)  #trims leading white space from labels
+
 
 
 # Add the genotype2 information to the ind.metrics in data_gl_filtered_adult
