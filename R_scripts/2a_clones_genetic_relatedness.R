@@ -5,28 +5,70 @@
 
 
 
+# load libraries ----------------------------------------------------------
+
 library(igraph)
 library(ggraph)
+library(dplyr)
 
-# Perform MLG analysis
-mlg_analysis <- mlg(data_genind_adult)
-print(paste("MLG Analysis:", mlg_analysis, "- clearly incorrect since there are def reps"))
-# Convert genind to genclone to use @mlg slot
-data_genclone_adult <- as.genclone(data_genind_adult) # convert to genclone
-data_genclone_adult@mlg <- mlg.filter(data_genclone_adult, dist=bitwise.dist, threshold=0.01) # assign clone groups
-mlg(data_genclone_adult) # now returns clone clusters
-mlg_vec <- data_genclone_adult@mlg
-mlg_table <- data.frame(Individual=indNames(data_genclone_adult),MLG=mlg_vec)
-clone_groups <- split(mlg_table$Individual,mlg_table$MLG)
-clone_groups[sapply(clone_groups,length)>0]
-#this works much better
-#pssible mismatches C11_2; c3_2, 
-#possible clones: c11 & c17 & 5_30; c14 and 1_05/1_30; 3_30, 4_30, c10; c3 & c13
-genotype_data_long <- stack(clone_groups[sapply(clone_groups, length) > 0])
-colnames(genotype_data_long) <- c("id", "group")
-group_labels <- setNames(paste0("X", seq_along(unique(genotype_data_long$group))), unique(genotype_data_long$group))
-genotype_data_long$genotype2 <- group_labels[as.character(genotype_data_long$group)]
 
+
+# from colony -------------------------------------------------------------
+
+text <- '1     1.000      c1_1,c1_2
+2     1.000      7_30_1,7_3_2,7_05_2,7_3_1,7_10_2,7_30_2,7_05_1,7_10_1
+3     1.000      c7_1,c7_2
+4     1.000      c11_1
+5     1.000      c16_1,c16_2
+6     1.000      c20_1,c20_2
+7     1.000      5_3_1,5_3_2,5_05_2,5_05_1,5_10_2
+8     1.000      4_3_2,4_10_2,4_05_1,4_10_1,4_3_1,4_05_2
+9     1.000      6_30_1,6_30_2,6_3_1,6_05_2,6_3_2,6_10_2,6_10_1,6_05_1
+10     1.000      3_3_2,3_3_1,3_10_2,3_05_2,3_10_1,3_05_1
+11     1.000      c11_2,c17_1,5_30_1,c17_2,5_30_2
+12     1.000      2_30_1,2_10_1,2_30_2
+13     1.000      c3_1,c3_2,c13_1,c13_2
+14     1.000      c8_1,c8_2
+15     1.000      c12_1,c12_2
+16     1.000      1_10_1
+17     1.000      3_30_2,4_30_,3_30_1,4_30_1,c10_1,c10_2
+18     1.000      c9_1,c9_2
+19     1.000      c18_1,c18_2
+20     1.000      1_05_,c14_1,c14_2,1_30_1
+21     1.000      c5_2
+22     1.000      c6_1,c6_2
+23     1.000      c19_1,c19_2
+24     1.000      1_3_
+25     1.000      2_05_1,2_3_'
+
+df1 <- read.table(text = text, header = FALSE, sep = "", fill = TRUE, col.names = c("CloneID", "Prob", "group")) # basic table
+df1$group1 <- sapply(strsplit(df1$group, ","), function(x) x) # split comma-separated groups
+df1$group <- NULL # drop raw string if unnecessary
+genotype_data_long <- do.call(rbind, lapply(1:nrow(df1), function(i) data.frame(genotype2 = df1$CloneID[i], Prob = df1$Prob[i], id = df1$group[[i]])))
+genotype_data_long$genotype2 = paste0('X', genotype_data_long$genotype2)
+genotype_data_long = genotype_data_long %>% dplyr::select(-Prob )
+str(genotype_data_long)
+
+
+# # Perform MLG analysis
+# mlg_analysis <- mlg(data_genind_adult)
+# print(paste("MLG Analysis:", mlg_analysis, "- clearly incorrect since there are def reps"))
+# # Convert genind to genclone to use @mlg slot
+# data_genclone_adult <- as.genclone(data_genind_adult) # convert to genclone
+# data_genclone_adult@mlg <- mlg.filter(data_genclone_adult, dist=bitwise.dist, threshold=0.05) # assign clone groups
+# mlg(data_genclone_adult) # now returns clone clusters
+# mlg_vec <- data_genclone_adult@mlg
+# mlg_table <- data.frame(Individual=indNames(data_genclone_adult),MLG=mlg_vec)
+# clone_groups <- split(mlg_table$Individual,mlg_table$MLG)
+# clone_groups[sapply(clone_groups,length)>0]
+# #this works much better
+# #pssible mismatches C11_2; c3_2, 
+# #possible clones: c11 & c17 & 5_30; c14 and 1_05/1_30; 3_30, 4_30, c10; c3 & c13
+# genotype_data_long <- stack(clone_groups[sapply(clone_groups, length) > 0])
+# colnames(genotype_data_long) <- c("id", "group")
+# group_labels <- setNames(paste0("X", seq_along(unique(genotype_data_long$group))), unique(genotype_data_long$group))
+# genotype_data_long$genotype2 <- group_labels[as.character(genotype_data_long$group)]
+# 
 
 #
 real_geno_df <- stack(clone_groups) # collapse list into data.frame with values and group names
