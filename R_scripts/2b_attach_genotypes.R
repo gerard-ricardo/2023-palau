@@ -101,8 +101,8 @@ library(ggraph)
 data_gl_filtered_adult@other$ind.metrics$id <- as.character(data_gl_filtered_adult@other$ind.metrics$id)
 genotype_data_long$id <- as.character(genotype_data_long$id)
 
-data_gl_filtered_adult@other$ind.metrics <- data_gl_filtered_adult@other$ind.metrics %>% left_join(genotype_data_long, 
-                                                                                                   by = "id")  # Join by the genotype2 column
+str(data_gl_filtered_adult@other$ind.metrics)
+data_gl_filtered_adult@other$ind.metrics <- data_gl_filtered_adult@other$ind.metrics %>% left_join(genotype_data_long,  by = "id")  # Join by the genotype2 column
 data_gl_filtered_adult@other$ind.metrics$genotype2
 tt = data_gl_filtered_adult@other$ind.metrics
 

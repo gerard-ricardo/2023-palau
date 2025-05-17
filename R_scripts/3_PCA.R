@@ -71,8 +71,8 @@ pca_complete$kmeans_cluster <- as.factor(kmeans_result$cluster)
 # DBSCAN clustering
 # Find the appropriate eps value using kNNdistplot
 kNNdistplot(pca_data, k = 5)  #k-nearest neighbour
-elbow = 13.1 # Place this at the elbow of the line  #9.82, #10.25
-abline(h = elbow, col = "red", lty = 2)  
+elbow = 13.5 # Place this at the elbow of the line  #9.82, #10.25
+abline(h = elbow, col = "red", lty = 2)
 
 # # Function to perform DBSCAN clustering and plot results
 # perform_dbscan <- function(pca_data, pca_complete, eps_value, min_pts = 3) {
@@ -90,8 +90,8 @@ abline(h = elbow, col = "red", lty = 2)
 #   print(summary(silhouette_score))
 #   return(plot)
 # }
-# 
-# eps_values <- elbow 
+#
+# eps_values <- elbow
 # for (eps in eps_values) {
 #   plot <- perform_dbscan(pca_data, pca_complete, eps)
 #   print(plot)
@@ -177,13 +177,8 @@ t2 <- ggplot(pca_complete2, aes(x = Axis1, y = Axis2)) +
   )
 t2
 
-#x23 = 1_3, 6_1 (not sure why two here, should be one)
-#x16 = 1_10_1 group , 
-#x8 = 4_3_1 group (most of radial 4)
 
-#dDocent
-#x9
-#x21
+
 
 
 ##dbscan cluster
