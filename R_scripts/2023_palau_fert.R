@@ -76,6 +76,7 @@ rad_lines = unique(radial_indiv$deg)
 ## overall mean and weighted means
 # sum of all embryos
 (with(data1, sum(suc, na.rm = T) / sum(tot, na.rm = T)))  #0.235
+nrow(data1)
 #mean of all samples
 with(data1, mean(prop, na.rm = T))  #unweighted
 with(data1, sd(prop, na.rm = T))  #unweighted
@@ -222,6 +223,23 @@ pval_dist <- summary(md1$gam)$p.table["dist", "Pr(>|t|)"] # 0.00182
 odds_ratio <- exp(coef_dist) # ≈ 0.89
 print(paste0("For each 1 m increase in distance, the odds of fertilisation decrease by ", 
              round((1 - odds_ratio) * 100, 1), "% (p = ", signif(pval_dist, 3), ")"))
+
+
+# Extract fixed effects
+fixef <- coef(md1$gam) # This gives intercept and dist coefficient
+beta0 <- fixef["(Intercept)"]
+beta1 <- fixef["dist"]
+
+# Define a range of distances
+dist_vals <- seq(0, 10, by = 1)
+
+# Hold s(deg) = 0 for simplicity (i.e., centring effect)
+eta <- beta0 + beta1 * dist_vals
+prob <- exp(eta) / (1 + exp(eta)) # Inverse logit
+
+# View results
+data.frame(Distance = dist_vals, Probability = prob)
+
                    
 
 ############################
