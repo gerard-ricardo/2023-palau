@@ -19,7 +19,7 @@ library(cluster)
 
 # PCA Analysis
 pca_data <- tab(data_gl_adult_unique, freq = TRUE, NA.method = "mean") %>% na.omit() # Convert to tabular format and omit NAs
-pca <- dudi.pca(pca_data, center = TRUE, scale = FALSE, nf = 2, scannf = FALSE) # Perform PCA
+pca <- dudi.pca(pca_data, center = TRUE, scale = FALSE, nf = 18, scannf = FALSE) # Perform PCA, only nf dimension retained.18 containers ~90% of variation
 pca_complete <- data.frame(pca$li, pop = data_gl_adult_unique$pop) # Combine PCA results with population data
 #use for adults
 #pca_complete <- data.frame(pca$li) # Combine PCA results with population data
@@ -171,8 +171,8 @@ t2 <- ggplot(pca_complete2, aes(x = Axis1, y = Axis2)) +
   #stat_ellipse(aes(x = Axis1, y = Axis2, group = kmeans_cluster, color = factor(kmeans_cluster)), level = 0.95, linetype = 2, size = 1) +
   theme_sleek2() +
   labs(
-    x = paste0("PCA1 (", round(explained_variance[1], 2), "%)"),
-    y = paste0("PCA2 (", round(explained_variance[2], 2), "%)"),
+    x = paste0("PC 1 (", round(explained_variance[1], 2), "%)"),
+    y = paste0("PC 2 (", round(explained_variance[2], 2), "%)"),
     color = "K-means Cluster", fill = "K-means Cluster", shape = "Stage"
   )
 t2
