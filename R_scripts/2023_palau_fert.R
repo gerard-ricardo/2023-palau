@@ -110,7 +110,9 @@ median_prop <- median(resampled_data_all$prop1)
 iqr_prop <- IQR(resampled_data_all$prop1)
 print(paste0('Median fertilisation: ', 100*round(median_prop, 4), '%, IQR: ', 100*round(iqr_prop, 4), '%'))
 range(resampled_data_all$prop1)
-
+range(resampled_data_all$tot)
+quantile(resampled_data_all$tot, c(0.05, 0.95))
+nrow(resampled_data_all)
 
 #radial
 set.seed(123) # Ensure reproducibility
@@ -225,6 +227,9 @@ print(paste0("For each 1 m increase in distance, the odds of fertilisation decre
              round((1 - odds_ratio) * 100, 1), "% (p = ", signif(pval_dist, 3), ")"))
 
 
+grid$pval_adj <- p.adjust(grid$pval, method = "fdr") # adjusts for multiple comparisons across grid
+
+
 # Extract fixed effects
 fixef <- coef(md1$gam) # This gives intercept and dist coefficient
 beta0 <- fixef["(Intercept)"]
@@ -243,13 +248,13 @@ data.frame(Distance = dist_vals, Probability = prob)
                    
 
 ############################
-#test  slightly lower sperm conc for some samples (5_30, 3_30, 4_30 from mlg filter)
-radial_indiv$clonemate_in_sperm <- ifelse(radial_indiv$egg_clone_in_sperm, 1, 0) # 1 if egg clone found among sperm donors
-radial_indiv$effective_sperm_sources <- ifelse(radial_indiv$id %in% c("5_30", "3_30", "4_30"), 14, 15) # Decrease by 1 if clone in sperm
-md2 <- gamm(cbind(suc, tot - suc) ~ s(deg, k = 3) + dist + effective_sperm_sources, 
-              random = list(obs = ~1), family = binomial, method = "REML", data = radial_indiv)
-summary(md2$gam)
-AIC(md2) #didn't improve fit and impact negigable.
+# #test  slightly lower sperm conc for some samples (5_30, 3_30, 4_30 from mlg filter)
+# radial_indiv$clonemate_in_sperm <- ifelse(radial_indiv$egg_clone_in_sperm, 1, 0) # 1 if egg clone found among sperm donors
+# radial_indiv$effective_sperm_sources <- ifelse(radial_indiv$id %in% c("5_30", "3_30", "4_30"), 14, 15) # Decrease by 1 if clone in sperm
+# md2 <- gamm(cbind(suc, tot - suc) ~ s(deg, k = 3) + dist + effective_sperm_sources, 
+#               random = list(obs = ~1), family = binomial, method = "REML", data = radial_indiv)
+# summary(md2$gam)
+# AIC(md2) #didn't improve fit and impact negigable.
 
 
 ################
@@ -323,5 +328,5 @@ p0 <- p0 +
             color = "black", size = 3, vjust = -1)  # Adjust size and position
 p0
 
-
+nrow(radial_indiv)
 #ggsave(p0, filename = '2023palau_fert.pdf',  path = "./plots", device = "pdf",  width = 10, height = 6)  #this often works better than pdf
